@@ -46,6 +46,8 @@
     }
 
     .filters label { font-size: 0.85rem; color: #a0aec0; }
+    .filter-group { display: flex; align-items: center; gap: 8px; }
+    .filter-group + .filter-group { padding-left: 12px; border-left: 1px solid #2d3748; }
 
     select {
       background: #2d3748;
@@ -374,14 +376,36 @@
     <button class="add-btn" onclick="openModal()">+ Aggiungi</button>
     <button class="add-btn" style="background:#4a5568" onclick="openTransferModal()">🔄 Trasferisci</button>
     <button class="add-btn" style="background:#2d3748" id="btn-export">📥 Esporta</button>
+    <button class="add-btn" style="background:#16a34a;display:none" id="btn-sync" onclick="syncFromDrive()">☁️ Sync da Drive</button>
   </div>
 </header>
 
 <div class="filters">
-  <label>Mese:</label>
-  <select id="month-filter">
-    <option value="">Tutti i mesi</option>
-  </select>
+  <div class="filter-group">
+    <label>Visualizza:</label>
+    <select id="filter-mode">
+      <option value="month">Mese</option>
+      <option value="year">Anno</option>
+      <option value="range">Periodo</option>
+      <option value="all">Tutti</option>
+    </select>
+  </div>
+  <div class="filter-group" id="filter-month-group">
+    <label>Mese:</label>
+    <select id="month-filter">
+      <option value="">Tutti i mesi</option>
+    </select>
+  </div>
+  <div class="filter-group" id="filter-year-group" style="display:none">
+    <label>Anno:</label>
+    <select id="year-filter"></select>
+  </div>
+  <div class="filter-group" id="filter-range-group" style="display:none">
+    <label>Da:</label>
+    <select id="range-from"></select>
+    <label>A:</label>
+    <select id="range-to"></select>
+  </div>
 </div>
 
 <div class="main">
@@ -426,6 +450,55 @@
     </div>
   </div>
 
+  <!-- Subcategory breakdown -->
+  <div class="chart-grid" style="margin-bottom:24px">
+    <div class="card chart-full">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:gap">
+        <h2 style="margin-bottom:0" id="subcategory-title" onclick="toggleCard(this)">Spese per sottocategoria <span class="collapse-icon">▼</span></h2>
+        <div style="display:flex; gap:10px; align-items:center">
+          <label style="font-size:0.85rem;color:#a0aec0">Categoria:</label>
+          <select id="sub-category-filter" style="min-width:160px">
+            <option value="">Tutte</option>
+          </select>
+          <label style="font-size:0.85rem;color:#a0aec0">Sottocategoria:</label>
+          <select id="sub-subcategory-filter" style="min-width:160px">
+            <option value="">Tutte</option>
+          </select>
+        </div>
+      </div>
+      <div class="card-body">
+        <div id="subcategory-content"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Transactions table -->
+  <div class="card" style="margin-bottom:24px">
+    <h2 onclick="toggleCard(this)">Transazioni recenti <span class="collapse-icon">▼</span></h2>
+    <div class="card-body">
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:36px"></th>
+              <th>Data</th>
+              <th>Account</th>
+              <th>Descrizione</th>
+              <th>Categoria</th>
+              <th>Sottocategoria</th>
+              <th>Tipo</th>
+              <th>Importo</th>
+            </tr>
+          </thead>
+          <tbody id="transactions-body">
+            <tr><td colspan="8" class="loading">Caricamento...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+
   <!-- Charts row 1 -->
   <div class="chart-grid">
     <div class="card chart-full">
@@ -458,28 +531,6 @@
     </div>
   </div>
 
-  <!-- Subcategory breakdown -->
-  <div class="chart-grid" style="margin-bottom:24px">
-    <div class="card chart-full">
-      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:gap">
-        <h2 style="margin-bottom:0" id="subcategory-title" onclick="toggleCard(this)">Spese per sottocategoria <span class="collapse-icon">▼</span></h2>
-        <div style="display:flex; gap:10px; align-items:center">
-          <label style="font-size:0.85rem;color:#a0aec0">Categoria:</label>
-          <select id="sub-category-filter" style="min-width:160px">
-            <option value="">Tutte</option>
-          </select>
-          <label style="font-size:0.85rem;color:#a0aec0">Sottocategoria:</label>
-          <select id="sub-subcategory-filter" style="min-width:160px">
-            <option value="">Tutte</option>
-          </select>
-        </div>
-      </div>
-      <div class="card-body">
-        <div id="subcategory-content"></div>
-      </div>
-    </div>
-  </div>
-
   <!-- Cumulative balance -->
   <div class="chart-grid" style="margin-bottom:24px">
     <div class="card chart-full">
@@ -488,32 +539,6 @@
         <div class="chart-container-tall">
           <canvas id="chart-cumulative"></canvas>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Transactions table -->
-  <div class="card">
-    <h2 onclick="toggleCard(this)">Transazioni recenti <span class="collapse-icon">▼</span></h2>
-    <div class="card-body">
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:36px"></th>
-              <th>Data</th>
-              <th>Account</th>
-              <th>Descrizione</th>
-              <th>Categoria</th>
-              <th>Sottocategoria</th>
-              <th>Tipo</th>
-              <th>Importo</th>
-            </tr>
-          </thead>
-          <tbody id="transactions-body">
-            <tr><td colspan="8" class="loading">Caricamento...</td></tr>
-          </tbody>
-        </table>
       </div>
     </div>
   </div>
@@ -553,19 +578,78 @@
   }
 
   // Carica mesi disponibili
+  let allMonths = [];
+
   async function loadMonths() {
-    const months = await fetch(`${API}/api/months`).then(r => r.json());
+    allMonths = await fetch(`${API}/api/months`).then(r => r.json());
+
+    // Popola month-filter
     const sel = document.getElementById('month-filter');
-    months.forEach(m => {
+    allMonths.forEach(m => {
       const opt = document.createElement('option');
-      opt.value = m;
-      opt.textContent = m;
+      opt.value = m; opt.textContent = m;
       sel.appendChild(opt);
     });
-    // Range di date nell'header
-    if (months.length) {
-      document.getElementById('date-range').textContent = `${months[0]} → ${months[months.length-1]}`;
+
+    // Popola year-filter
+    const years = [...new Set(allMonths.map(m => m.slice(0, 4)))];
+    const ySel = document.getElementById('year-filter');
+    years.forEach(y => {
+      const opt = document.createElement('option');
+      opt.value = y; opt.textContent = y;
+      ySel.appendChild(opt);
+    });
+    // Anno corrente come default
+    const currentYear = new Date().toISOString().slice(0, 4);
+    if (years.includes(currentYear)) ySel.value = currentYear;
+
+    // Popola range selects
+    ['range-from', 'range-to'].forEach(id => {
+      const rs = document.getElementById(id);
+      allMonths.forEach(m => {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m;
+        rs.appendChild(opt);
+      });
+    });
+    // Range default: primo e ultimo mese
+    if (allMonths.length) {
+      document.getElementById('range-from').value = allMonths[0];
+      document.getElementById('range-to').value = allMonths[allMonths.length - 1];
     }
+
+    // Range di date nell'header
+    if (allMonths.length) {
+      document.getElementById('date-range').textContent = `${allMonths[0]} → ${allMonths[allMonths.length-1]}`;
+    }
+  }
+
+  // Restituisce la lista di mesi attivi in base al filtro corrente
+  function getActiveMonths() {
+    const mode = document.getElementById('filter-mode').value;
+    if (mode === 'all') return null; // null = tutti
+    if (mode === 'month') {
+      const v = document.getElementById('month-filter').value;
+      return v ? [v] : null;
+    }
+    if (mode === 'year') {
+      const y = document.getElementById('year-filter').value;
+      return allMonths.filter(m => m.startsWith(y));
+    }
+    if (mode === 'range') {
+      const from = document.getElementById('range-from').value;
+      const to = document.getElementById('range-to').value;
+      return allMonths.filter(m => m >= from && m <= to);
+    }
+    return null;
+  }
+
+  // Mostra/nasconde i gruppi filtro in base alla modalità
+  function updateFilterVisibility() {
+    const mode = document.getElementById('filter-mode').value;
+    document.getElementById('filter-month-group').style.display = mode === 'month' ? '' : 'none';
+    document.getElementById('filter-year-group').style.display = mode === 'year' ? '' : 'none';
+    document.getElementById('filter-range-group').style.display = mode === 'range' ? '' : 'none';
   }
 
   // KPI
@@ -638,9 +722,7 @@
   }
 
   // Chart categoria
-  async function loadCategoryChart(month) {
-    const q = month ? `?month=${month}` : '';
-    const data = await fetch(`${API}/api/by-category${q}`).then(r => r.json());
+  function renderCategoryChart(data) {
     destroyChart('category');
     const ctx = document.getElementById('chart-category').getContext('2d');
     const colors = ['#fc8181','#f6ad55','#faf089','#68d391','#63b3ed','#76e4f7','#b794f4','#ed64a6','#fc8181','#90cdf4','#fbd38d','#9ae6b4'];
@@ -648,7 +730,7 @@
       type: 'doughnut',
       data: {
         labels: data.map(d => d.category),
-        datasets: [{ data: data.map(d => d.amount), backgroundColor: colors, borderWidth: 2, borderColor: '#1a1d27' }]
+        datasets: [{ data: data.map(d => d.amount || d.total), backgroundColor: colors, borderWidth: 2, borderColor: '#1a1d27' }]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
@@ -658,6 +740,12 @@
         }
       }
     });
+  }
+
+  async function loadCategoryChart(month) {
+    const q = month ? `?month=${month}` : '';
+    const data = await fetch(`${API}/api/by-category${q}`).then(r => r.json());
+    renderCategoryChart(data);
   }
 
   // Chart account
@@ -861,21 +949,81 @@
 
   // Refresh tutto quando cambia il filtro
   async function refresh() {
-    const month = document.getElementById('month-filter').value;
+    const months = getActiveMonths();
+    // Per le API che accettano un singolo mese, passiamo il primo della lista
+    // Per anno/range mandiamo array al backend (dove supportato) o il primo mese
+    const month = months && months.length === 1 ? months[0] : (months ? months[0] : '');
+    const monthParam = months && months.length === 1 ? month : '';
+
     await Promise.all([
-      loadSummary(month),
+      loadSummaryMulti(months),
       loadAccountBalances(),
-      loadCategoryChart(month),
-      loadAccountChart(month),
-      loadSubcategoryPanel(month),
-      loadTransactions(month),
+      loadCategoryChartMulti(months),
+      loadAccountChart(monthParam),
+      loadSubcategoryPanel(monthParam),
+      loadTransactions(monthParam),
     ]);
   }
 
+  // Versione multi-mese di loadSummary
+  async function loadSummaryMulti(months) {
+    if (!months || months.length === 1) {
+      return loadSummary(months ? months[0] : '');
+    }
+    // Aggrega più mesi
+    const results = await Promise.all(months.map(m =>
+      fetch(`${API}/api/summary?month=${m}`).then(r => r.json())
+    ));
+    const agg = results.reduce((acc, d) => ({
+      total_income: acc.total_income + (d.total_income || 0),
+      total_expenses: acc.total_expenses + (d.total_expenses || 0),
+      transaction_count: acc.transaction_count + (d.transaction_count || 0),
+    }), { total_income: 0, total_expenses: 0, transaction_count: 0 });
+    agg.balance = agg.total_income - agg.total_expenses;
+    setKpi('kpi-income', fmt(agg.total_income));
+    setKpi('kpi-expenses', fmt(agg.total_expenses));
+    setKpi('kpi-count', agg.transaction_count);
+    const balEl = document.getElementById('kpi-balance');
+    setKpi('kpi-balance', fmt(agg.balance));
+    balEl.className = 'value ' + (agg.balance >= 0 ? 'income' : 'expense');
+  }
+
+  // Versione multi-mese di loadCategoryChart
+  async function loadCategoryChartMulti(months) {
+    if (!months || months.length === 1) {
+      return loadCategoryChart(months ? months[0] : '');
+    }
+    const results = await Promise.all(months.map(m =>
+      fetch(`${API}/api/by-category?month=${m}`).then(r => r.json())
+    ));
+    // Aggrega per categoria
+    const agg = {};
+    results.flat().forEach(d => {
+      agg[d.category] = (agg[d.category] || 0) + (d.amount || d.total || 0);
+    });
+    const data = Object.entries(agg).map(([category, total]) => ({ category, total }));
+    renderCategoryChart(data);
+  }
+
+  document.getElementById('filter-mode').addEventListener('change', () => {
+    updateFilterVisibility();
+    refresh();
+  });
   document.getElementById('month-filter').addEventListener('change', refresh);
+  document.getElementById('year-filter').addEventListener('change', refresh);
+  document.getElementById('range-from').addEventListener('change', refresh);
+  document.getElementById('range-to').addEventListener('change', refresh);
 
   async function init() {
     await loadMonths();
+    updateFilterVisibility();
+
+    // Default: mese corrente
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const sel = document.getElementById('month-filter');
+    const exists = [...sel.options].some(o => o.value === currentMonth);
+    if (exists) sel.value = currentMonth;
+
     await Promise.all([
       refresh(),
       loadMonthlyChart(),
@@ -1094,6 +1242,38 @@
       btn.textContent = 'Trasferisci';
     }
   }
+
+  // ── Sync da Drive (solo standby) ────────────
+  async function syncFromDrive() {
+    const btn = document.getElementById('btn-sync');
+    if (!confirm('Vuoi sovrascrivere il database locale con l\'ultimo backup da Google Drive?')) return;
+    btn.disabled = true;
+    btn.textContent = '⏳ Sync in corso...';
+    try {
+      const res = await fetch(`${API}/api/sync-from-drive`, { method: 'POST' });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.detail || 'Errore sync');
+      }
+      showToast('✅ Sync completato — ricarico i dati...');
+      setTimeout(() => location.reload(), 1500);
+    } catch (err) {
+      showToast('❌ ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '☁️ Sync da Drive';
+    }
+  }
+
+  // Mostra il tasto sync solo se NODE_ROLE=standby
+  fetch(`${API}/api/node-role`)
+    .then(r => r.json())
+    .then(data => {
+      if (data.role === 'standby') {
+        document.getElementById('btn-sync').style.display = '';
+      }
+    })
+    .catch(() => {});
 
   // ── PWA Service Worker ─────────────────────────
   if ('serviceWorker' in navigator) {

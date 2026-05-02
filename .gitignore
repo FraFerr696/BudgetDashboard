@@ -1,4 +1,6 @@
 contesto_budget_dashboard.md
+rclone_config
+backup.sh
 
 # ========================
 # Sensitive data — NEVER commit

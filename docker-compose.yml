@@ -5,7 +5,7 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/data
-      - /home/fraferr/.config/rclone:/root/.config/rclone:ro
+      - ./rclone_config:/root/.config/rclone:ro
     environment:
       - DB_PATH=/data/budget.db
       - NODE_ROLE=primary
