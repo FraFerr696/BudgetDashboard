@@ -41,7 +41,7 @@ Accessible remotely via Tailscale and installable as a PWA on Android.
 ## Project Structure
 
 ```
-budget-dashboard/
+BudgetDashboard/
 ├── backend/
 │   ├── app/
 │   │   └── main.py            # FastAPI — all API endpoints
@@ -74,7 +74,7 @@ budget-dashboard/
 
 ```bash
 git clone https://github.com/<your-username>/BudgetDashboard.git
-cd budget-dashboard
+cd BudgetDashboard
 
 # Create the data directory (not tracked in git)
 mkdir -p data
@@ -161,9 +161,9 @@ Requires `rclone` configured with a Google Drive remote named `gdrive`.
 ## Deployment on Raspberry Pi
 
 ```bash
-scp -r budget-dashboard/ pi@<PI_IP>:~/budget-dashboard/
+scp -r BudgetDashboard/ pi@<PI_IP>:~/BudgetDashboard/
 ssh pi@<PI_IP>
-cd ~/budget-dashboard
+cd ~/BudgetDashboard
 docker compose up --build -d
 tailscale serve --bg http://localhost:3000
 ```
