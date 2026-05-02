@@ -73,7 +73,7 @@ budget-dashboard/
 ### Run locally
 
 ```bash
-git clone https://github.com/<your-username>/budget-dashboard.git
+git clone https://github.com/<your-username>/BudgetDashboard.git
 cd budget-dashboard
 
 # Create the data directory (not tracked in git)
