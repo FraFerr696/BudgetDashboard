@@ -1,0 +1,53 @@
+contesto_budget_dashboard.md
+
+# ========================
+# Sensitive data — NEVER commit
+# ========================
+data/budget.db
+data/*.db
+data/*.xlsx
+data/*.xls
+data/backups/
+
+# ========================
+# Environment & secrets
+# ========================
+.env
+.env.*
+!.env.example
+
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.venv/
+venv/
+env/
+
+# ========================
+# Docker
+# ========================
+*.log
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========================
+# IDE / editors
+# ========================
+.vscode/
+.idea/
+*.swp
+*.swo
