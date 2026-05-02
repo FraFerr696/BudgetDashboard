@@ -5,8 +5,10 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/data
+      - ./rclone_config:/root/.config/rclone:ro
     environment:
       - DB_PATH=/data/budget.db
+      - NODE_ROLE=standby
     restart: unless-stopped
 
   frontend:

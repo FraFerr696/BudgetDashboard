@@ -458,3 +458,44 @@ def export_excel():
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": "attachment; filename=BudgetExport.xlsx"}
     )
+
+# ── Sync from Google drive ────────────────────────────────────
+@app.post("/api/sync-from-drive")
+async def sync_from_drive():
+    import subprocess
+    import os
+
+    db_path = "/data/budget.db"
+    remote = "budgetDB-drive:budget-backups/budget_latest.db"
+    tmp_path = "/data/budget_sync_tmp.db"
+
+    try:
+        # Scarica il backup latest da Drive
+        result = subprocess.run(
+            ["rclone", "copyto", remote, tmp_path],
+            capture_output=True, text=True, timeout=60
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"rclone error: {result.stderr}")
+
+        # Verifica che il file scaricato sia un DB SQLite valido
+        check = subprocess.run(
+            ["sqlite3", tmp_path, "PRAGMA integrity_check;"],
+            capture_output=True, text=True, timeout=10
+        )
+        if "ok" not in check.stdout.lower():
+            os.remove(tmp_path)
+            raise HTTPException(status_code=500, detail="DB scaricato corrotto")
+
+        # Sostituisce il DB attivo
+        os.replace(tmp_path, db_path)
+
+        return {"status": "ok", "message": "Sync completato con successo"}
+
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Timeout durante il sync")
+
+@app.get("/api/node-role")
+async def node_role():
+    import os
+    return {"role": os.getenv("NODE_ROLE", "primary")}
