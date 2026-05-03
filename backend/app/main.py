@@ -34,6 +34,7 @@ class NewTransaction(BaseModel):
     amount: float
     subcategory: str
     notes: str = ""
+    status: str = "confirmed"  # 'confirmed' o 'planned'
 
 
 # ── Health ──────────────────────────────────────────
@@ -48,7 +49,7 @@ def health():
 @app.get("/api/transactions")
 def get_transactions(month: str = None, category: str = None, account: str = None, category_type: str = None):
     conn = get_db()
-    query = "SELECT id, date, account, notes, amount, subcategory, category, category_type FROM transactions WHERE 1=1"
+    query = "SELECT id, date, account, notes, amount, subcategory, category, category_type, COALESCE(status, 'confirmed') as status FROM transactions WHERE 1=1"
     params = []
 
     if month:
@@ -78,6 +79,7 @@ def get_transactions(month: str = None, category: str = None, account: str = Non
             "Subcategory": r["subcategory"],
             "Category": r["category"],
             "Category Type": r["category_type"],
+            "status": r["status"],
         }
         for r in rows
     ]
@@ -88,7 +90,7 @@ def get_transactions(month: str = None, category: str = None, account: str = Non
 @app.get("/api/summary")
 def get_summary(month: str = None):
     conn = get_db()
-    where = "WHERE substr(date, 1, 7) = ?" if month else "WHERE 1=1"
+    where = "WHERE COALESCE(status, 'confirmed') = 'confirmed' AND substr(date, 1, 7) = ?" if month else "WHERE COALESCE(status, 'confirmed') = 'confirmed'"
     params = [month] if month else []
 
     income = conn.execute(
@@ -127,7 +129,7 @@ def get_by_month():
             SUM(CASE WHEN category_type = 'Income' THEN amount ELSE 0 END) AS income,
             SUM(CASE WHEN category_type = 'Expense' THEN ABS(amount) ELSE 0 END) AS expenses
         FROM transactions
-        WHERE category_type != 'Transfer'
+        WHERE category_type != 'Transfer' AND COALESCE(status, 'confirmed') = 'confirmed'
         GROUP BY month
         ORDER BY month
     """).fetchall()
@@ -152,7 +154,7 @@ def get_by_category(month: str = None):
     query = """
         SELECT category, SUM(ABS(amount)) AS total
         FROM transactions
-        WHERE category_type = 'Expense'
+        WHERE category_type = 'Expense' AND COALESCE(status, 'confirmed') = 'confirmed'
     """
     params = []
     if month:
@@ -173,7 +175,7 @@ def get_by_subcategory(month: str = None, category: str = None):
     query = """
         SELECT category, subcategory, SUM(ABS(amount)) AS total
         FROM transactions
-        WHERE category_type = 'Expense'
+        WHERE category_type = 'Expense' AND COALESCE(status, 'confirmed') = 'confirmed'
     """
     params = []
     if month:
@@ -209,7 +211,7 @@ def get_by_account(month: str = None):
     query = """
         SELECT account, SUM(ABS(amount)) AS total
         FROM transactions
-        WHERE category_type = 'Expense'
+        WHERE category_type = 'Expense' AND COALESCE(status, 'confirmed') = 'confirmed'
     """
     params = []
     if month:
@@ -271,9 +273,9 @@ def add_transaction(tx: NewTransaction):
     credit = tx.amount if tx.amount > 0 else None
 
     conn.execute(
-        """INSERT INTO transactions (date, account, notes, debit, credit, amount, subcategory, category, category_type)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-        (tx.date.isoformat(), tx.account, tx.notes or "", debit, credit, tx.amount, tx.subcategory, category, category_type)
+        """INSERT INTO transactions (date, account, notes, debit, credit, amount, subcategory, category, category_type, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (tx.date.isoformat(), tx.account, tx.notes or "", debit, credit, tx.amount, tx.subcategory, category, category_type, tx.status)
     )
     conn.commit()
     last_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
@@ -348,6 +350,23 @@ def delete_transaction(tx_id: int):
     return {"status": "ok", "deleted_id": tx_id}
 
 
+# ── Toggle transaction status ──────────────────────
+
+@app.patch("/api/transactions/{tx_id}/toggle-status")
+def toggle_status(tx_id: int):
+    conn = get_db()
+    row = conn.execute("SELECT id, COALESCE(status, 'confirmed') as status FROM transactions WHERE id = ?", (tx_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Transazione non trovata")
+
+    new_status = "confirmed" if row["status"] == "planned" else "planned"
+    conn.execute("UPDATE transactions SET status = ? WHERE id = ?", (new_status, tx_id))
+    conn.commit()
+    conn.close()
+    return {"status": "ok", "id": tx_id, "new_status": new_status}
+
+
 # ── Edit transaction ───────────────────────────────
 
 @app.put("/api/transactions/{tx_id}")
@@ -376,9 +395,9 @@ def edit_transaction(tx_id: int, tx: NewTransaction):
 
     conn.execute(
         """UPDATE transactions
-           SET date=?, account=?, notes=?, debit=?, credit=?, amount=?, subcategory=?, category=?, category_type=?
+           SET date=?, account=?, notes=?, debit=?, credit=?, amount=?, subcategory=?, category=?, category_type=?, status=?
            WHERE id=?""",
-        (tx.date.isoformat(), tx.account, tx.notes or "", debit, credit, tx.amount, tx.subcategory, category, category_type, tx_id)
+        (tx.date.isoformat(), tx.account, tx.notes or "", debit, credit, tx.amount, tx.subcategory, category, category_type, tx.status, tx_id)
     )
     conn.commit()
     conn.close()
@@ -403,7 +422,7 @@ def get_account_balances():
 
         # Somma transazioni DOPO la data dello snapshot
         delta = conn.execute(
-            "SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE account = ? AND date > ?",
+            "SELECT COALESCE(SUM(amount), 0) FROM transactions WHERE account = ? AND date > ? AND COALESCE(status, 'confirmed') = 'confirmed'",
             (account, as_of_date)
         ).fetchone()[0]
 
@@ -430,6 +449,7 @@ def get_cumulative_balance():
     rows = conn.execute("""
         SELECT date, SUM(amount) OVER (ORDER BY date, id) AS cumulative
         FROM transactions
+        WHERE COALESCE(status, 'confirmed') = 'confirmed'
         ORDER BY date, id
     """).fetchall()
     conn.close()
@@ -502,3 +522,56 @@ async def sync_from_drive():
 async def node_role():
     import os
     return {"role": os.getenv("NODE_ROLE", "primary")}
+
+
+# ── Backup to Google Drive ─────────────────────────
+
+@app.post("/api/backup-to-drive")
+async def backup_to_drive():
+    import subprocess
+    from datetime import datetime
+
+    node_role = os.getenv("NODE_ROLE", "primary")
+    if node_role != "primary":
+        raise HTTPException(status_code=403, detail="Backup consentito solo sul nodo primary")
+
+    db_path = os.getenv("DB_PATH", "/data/budget.db")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_path = f"/data/backups/budget_{timestamp}.db"
+    latest_path = "/data/backups/budget_latest.db"
+    remote = "budgetDB-drive:budget-backups"
+
+    try:
+        # 1. Backup sicuro del DB con sqlite3 .backup
+        os.makedirs("/data/backups", exist_ok=True)
+        result = subprocess.run(
+            ["sqlite3", db_path, f".backup '{backup_path}'"],
+            capture_output=True, text=True, timeout=30
+        )
+        if result.returncode != 0:
+            raise HTTPException(status_code=500, detail=f"sqlite3 backup error: {result.stderr}")
+
+        # 2. Copia anche come budget_latest.db (file fisso per sync MSI)
+        subprocess.run(["cp", backup_path, latest_path], check=True, timeout=10)
+
+        # 3. Upload entrambi su Google Drive
+        for file_path in [backup_path, latest_path]:
+            result = subprocess.run(
+                ["rclone", "copyto", file_path, f"{remote}/{os.path.basename(file_path)}"],
+                capture_output=True, text=True, timeout=120
+            )
+            if result.returncode != 0:
+                raise HTTPException(status_code=500, detail=f"rclone error: {result.stderr}")
+
+        # 4. Pulizia: mantieni solo ultimi 5 backup locali
+        backups = sorted(
+            [f for f in os.listdir("/data/backups") if f.startswith("budget_2") and f.endswith(".db")],
+            reverse=True
+        )
+        for old in backups[5:]:
+            os.remove(f"/data/backups/{old}")
+
+        return {"status": "ok", "message": f"Backup completato: {os.path.basename(backup_path)}"}
+
+    except subprocess.TimeoutExpired:
+        raise HTTPException(status_code=504, detail="Timeout durante il backup")
