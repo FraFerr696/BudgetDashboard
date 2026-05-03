@@ -6,6 +6,7 @@ from datetime import date
 import sqlite3
 import os
 import io
+from investments import router as investments_router
 
 app = FastAPI(title="Budget Dashboard API")
 
@@ -15,6 +16,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(investments_router)
 
 DB_PATH = os.getenv("DB_PATH", "/data/budget.db")
 

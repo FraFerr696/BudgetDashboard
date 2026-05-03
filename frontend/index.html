@@ -76,6 +76,8 @@
       border-radius: 12px;
       padding: 20px 24px;
       border: 1px solid #2d3748;
+      min-width: 0;
+      overflow: hidden;
     }
 
     .kpi .label { font-size: 0.8rem; color: #718096; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
@@ -281,6 +283,47 @@
       line-height: 1;
     }
     .del-btn:hover { color: #fc8181; background: #3a1a1a; }
+    /* ── Navbar ─────────────────────────────────────────────── */
+    .navbar {
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      height: 70px;
+      background: #151821;
+      border-bottom: 1px solid #2d3748;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .nav-brand {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #a78bfa;
+      letter-spacing: 0.5px;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: 4px;
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
+    .nav-links a {
+      text-decoration: none;
+      color: #718096;
+      padding: 13px 20px;
+      border-radius: 10px;
+      font-size: 1.2rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .nav-links a:hover { color: #e2e8f0; background: #1a1d27; }
+    .nav-links a.active { color: #a78bfa; background: rgba(167,139,250,0.12); }
+
   </style>
 </head>
 <body>
@@ -369,8 +412,17 @@
 
 <div class="toast" id="toast"></div>
 
+<nav class="navbar">
+  <div class="nav-brand">💰 Budget Dashboard</div>
+  <div class="nav-links">
+    <a href="/" class="active">Budget</a>
+    <a href="/investments.html">Investimenti</a>
+  </div>
+  <button class="eye-btn" onclick="toggleAllKpis()" id="btn-hide-all" ... style="font-size:1.4rem;margin-left:auto;padding:10px">👁</button>
+</nav>
+
 <header>
-  <h1>💰 Budget Dashboard</h1>
+  <div></div>
   <div style="display:flex;align-items:center;gap:16px">
     <span id="date-range">Caricamento...</span>
     <button class="add-btn" onclick="openModal()">+ Aggiungi</button>
@@ -431,7 +483,7 @@
   </div>
 
   <!-- Account balances -->
-  <div class="kpi-grid" style="grid-template-columns: repeat(4, 1fr); margin-bottom: 24px;">
+  <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); margin-bottom: 24px;">
     <div class="kpi" id="bal-Unicredit">
       <div class="label">🏦 Unicredit <button class="eye-btn" onclick="toggleKpi('kpi-bal-Unicredit', this)">👁</button></div>
       <div class="value neutral" id="kpi-bal-Unicredit">—</div>
@@ -571,6 +623,23 @@
       el.classList.remove('hidden');
       btn.textContent = '👁';
     }
+  }
+
+  let allHidden = false;
+  function toggleAllKpis() {
+    allHidden = !allHidden;
+    const allIds = ['kpi-income','kpi-expenses','kpi-balance','kpi-bal-Unicredit','kpi-bal-Revolut','kpi-bal-Contanti','kpi-bal-Totale'];
+    allIds.forEach(id => {
+      const el = document.getElementById(id);
+      const btn = el?.closest('.kpi')?.querySelector('.eye-btn');
+      if (!el || !btn) return;
+      if (allHidden && !hiddenKpis[id]) {
+        toggleKpi(id, btn);
+      } else if (!allHidden && hiddenKpis[id]) {
+        toggleKpi(id, btn);
+      }
+    });
+    document.getElementById('btn-hide-all').textContent = allHidden ? '🙈' : '👁';
   }
 
   function destroyChart(id) {
