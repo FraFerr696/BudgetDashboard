@@ -908,7 +908,7 @@
       tbody.innerHTML = '<tr><td colspan="8" class="loading">Nessuna transazione</td></tr>';
       return;
     }
-    tbody.innerHTML = data.slice(0, 100).map(t => `
+    tbody.innerHTML = data.map(t => `
       <tr class="${t.status === 'planned' ? 'planned-row' : ''}">
         <td style="text-align:center;white-space:nowrap">
           <button class="status-toggle ${t.status === 'planned' ? 'is-planned' : 'is-confirmed'}" onclick="toggleStatus(${t.id}, this)" title="${t.status === 'planned' ? 'Conferma transazione' : 'Segna come pianificata'}">${t.status === 'planned' ? '⏳' : '✅'}</button>
