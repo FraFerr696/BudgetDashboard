@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Transazioni — Budget Dashboard</title>
+
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0f1117" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0b0d14;
+      color: #e2e8f0;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 20%,  rgba(88, 28, 135, 0.28) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 10%,  rgba(49, 46, 129, 0.22) 0%, transparent 55%),
+        radial-gradient(ellipse 70% 60% at 80% 85%,  rgba(76, 29, 149, 0.20) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 20% 80%,  rgba(30, 27, 75,  0.30) 0%, transparent 50%),
+        radial-gradient(ellipse 90% 70% at 50% 50%,  rgba(15, 10, 40,  0.60) 0%, transparent 70%),
+        linear-gradient(135deg, #0b0d14 0%, #0e0b1f 40%, #0d0d18 70%, #0b0e16 100%);
+      animation: bgPulse 18s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-image:
+        radial-gradient(circle 1px at 15% 25%,  rgba(167,139,250,0.25) 0%, transparent 1px),
+        radial-gradient(circle 1px at 72% 18%,  rgba(167,139,250,0.18) 0%, transparent 1px),
+        radial-gradient(circle 1px at 88% 55%,  rgba(139,92,246,0.20)  0%, transparent 1px),
+        radial-gradient(circle 1px at 35% 72%,  rgba(167,139,250,0.15) 0%, transparent 1px),
+        radial-gradient(circle 2px at 5%  90%,  rgba(139,92,246,0.18)  0%, transparent 2px);
+      pointer-events: none;
+      animation: starFloat 25s ease-in-out infinite alternate;
+    }
+
+    @keyframes bgPulse {
+      0%   { background: radial-gradient(ellipse 80% 60% at 10% 20%, rgba(88,28,135,0.28) 0%, transparent 60%), linear-gradient(135deg, #0b0d14 0%, #0e0b1f 40%, #0d0d18 70%, #0b0e16 100%); }
+      100% { background: radial-gradient(ellipse 85% 58% at 18% 8%, rgba(99,40,200,0.25) 0%, transparent 60%), linear-gradient(140deg, #0b0d14 0%, #0e0c20 42%, #0c0d18 72%, #0b0e15 100%); }
+    }
+    @keyframes starFloat { 0% { transform: translate(0,0); } 100% { transform: translate(-8px,-12px); } }
+
+    /* Navbar */
+    .navbar {
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      height: 80px;
+      background: rgba(15, 12, 28, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+        .nav-brand {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 2rem;
+      font-weight: 700;
+      color: #a78bfa;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      pointer-events: none;
+      line-height: 1;
+    }
+    .nav-brand svg { flex-shrink: 0; display: block; }
+    .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+    /* Page layout */
+    .page-layout { display: flex; min-height: calc(100vh - 60px); position: relative; z-index: 1; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: rgba(15, 12, 28, 0.80);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-right: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 12px;
+      gap: 4px;
+      position: sticky;
+      top: 80px;
+      height: calc(100vh - 80px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      z-index: 10;
+      transition: width 0.25s ease;
+      scrollbar-width: none;
+    }
+    .sidebar::-webkit-scrollbar { display: none; }
+    body.sidebar-collapsed .sidebar { width: 52px; padding: 16px 8px; }
+
+    .sidebar-section-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #4a5568;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 10px 8px 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      transition: opacity 0.15s, height 0.25s, padding 0.25s;
+    }
+    body.sidebar-collapsed .sidebar-section-label { opacity: 0; height: 0; padding: 0; pointer-events: none; }
+
+    .sidebar-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 6px 0; flex-shrink: 0; }
+
+    .sidebar-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px;
+      color: #a0aec0;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .sidebar-btn:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; border-color: rgba(255,255,255,0.14); }
+    .sidebar-btn .btn-icon { font-size: 1rem; flex-shrink: 0; }
+    .sidebar-btn .btn-label { transition: opacity 0.15s; }
+    body.sidebar-collapsed .sidebar-btn { justify-content: center; padding: 9px; }
+    body.sidebar-collapsed .sidebar-btn .btn-label { opacity: 0; width: 0; overflow: hidden; }
+    body.sidebar-collapsed .sidebar-btn::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: calc(100% + 10px);
+      top: 50%;
+      transform: translateY(-50%);
+      background: #1a1d27;
+      border: 1px solid rgba(255,255,255,0.14);
+      color: #e2e8f0;
+      font-size: 0.8rem;
+      padding: 5px 10px;
+      border-radius: 7px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 200;
+    }
+    body.sidebar-collapsed .sidebar-btn:hover::after { opacity: 1; }
+    .sidebar-btn.primary { background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.35); color: #a5b4fc; }
+    .sidebar-btn.primary:hover { background: rgba(102,126,234,0.28); border-color: rgba(102,126,234,0.55); color: #c7d2fe; }
+
+    .sidebar-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 10px;
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      color: #718096;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      white-space: nowrap;
+      overflow: hidden;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .sidebar-nav-link:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
+    .sidebar-nav-link.active { background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.2); color: #a78bfa; }
+    .sidebar-nav-link .btn-icon { font-size: 1rem; flex-shrink: 0; }
+    .sidebar-nav-link .btn-label { transition: opacity 0.15s; }
+    body.sidebar-collapsed .sidebar-nav-link { justify-content: center; padding: 9px; }
+    body.sidebar-collapsed .sidebar-nav-link .btn-label { opacity: 0; width: 0; overflow: hidden; }
+    body.sidebar-collapsed .sidebar-nav-link::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: calc(100% + 10px);
+      top: 50%;
+      transform: translateY(-50%);
+      background: #1a1d27;
+      border: 1px solid rgba(255,255,255,0.14);
+      color: #e2e8f0;
+      font-size: 0.8rem;
+      padding: 5px 10px;
+      border-radius: 7px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 200;
+    }
+    body.sidebar-collapsed .sidebar-nav-link:hover::after { opacity: 1; }
+
+    .sidebar-filter-group { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+    .sidebar-filter-group label { font-size: 0.73rem; color: #718096; padding-left: 2px; white-space: nowrap; }
+    body.sidebar-collapsed .sidebar-filter-group { display: none; }
+
+    .nav-toggle {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #718096;
+      font-size: 1.15rem;
+      padding: 6px 10px;
+      border-radius: 8px;
+      transition: all 0.2s;
+      line-height: 1;
+      margin-right: 4px;
+    }
+    .nav-toggle:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
+
+
+    select { background: rgba(45,55,72,0.8); color: #e2e8f0; border: 1px solid #4a5568; border-radius: 8px; padding: 7px 10px; font-size: 0.85rem; cursor: pointer; width: 100%; }
+    select:focus { outline: none; border-color: #667eea; }
+    input[type="text"] { background: rgba(45,55,72,0.8); color: #e2e8f0; border: 1px solid #4a5568; border-radius: 8px; padding: 7px 10px; font-size: 0.85rem; width: 100%; }
+    input[type="text"]:focus { outline: none; border-color: #667eea; }
+    input[type="text"]::placeholder { color: #4a5568; }
+
+    /* Main content */
+    .main-content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* Filters bar */
+    .filters-bar {
+      padding: 14px 28px;
+      background: rgba(21, 24, 33, 0.70);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 10px;
+      align-items: center;
+      position: sticky;
+      top: 60px;
+      z-index: 5;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .filters-bar::-webkit-scrollbar { display: none; }
+    .filter-label { font-size: 0.78rem; color: #718096; white-space: nowrap; }
+    .filter-input { background: rgba(45,55,72,0.8); color: #e2e8f0; border: 1px solid #4a5568; border-radius: 8px; padding: 7px 10px; font-size: 0.85rem; }
+    .filter-input:focus { outline: none; border-color: #667eea; }
+    .filter-input::placeholder { color: #4a5568; }
+    .filter-select { background: rgba(45,55,72,0.8); color: #e2e8f0; border: 1px solid #4a5568; border-radius: 8px; padding: 7px 10px; font-size: 0.85rem; cursor: pointer; }
+    .filter-select:focus { outline: none; border-color: #667eea; }
+    .results-count { margin-left: auto; font-size: 0.8rem; color: #4a5568; white-space: nowrap; }
+
+    /* Table area */
+    .table-area { flex: 1; overflow: auto; padding: 20px 28px 0; }
+
+    .tx-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .tx-table thead th {
+      background: rgba(21,24,33,0.95);
+      padding: 12px 14px;
+      text-align: left;
+      font-weight: 600;
+      color: #718096;
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      border-bottom: 1px solid #2d3748;
+      cursor: pointer;
+      user-select: none;
+      white-space: nowrap;
+      transition: color 0.15s;
+    }
+    .tx-table thead th:hover { color: #e2e8f0; }
+    .tx-table thead th.sort-asc::after  { content: ' ↑'; color: #667eea; }
+    .tx-table thead th.sort-desc::after { content: ' ↓'; color: #667eea; }
+    .tx-table tbody tr { border-bottom: 1px solid rgba(45,55,72,0.5); transition: background 0.15s; }
+    .tx-table tbody tr:hover { background: rgba(45,55,72,0.45); }
+    .tx-table tbody td { padding: 10px 14px; }
+    tr.planned-row { opacity: 0.6; }
+    tr.planned-row td { font-style: italic; }
+
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .badge.income { background: #1a3a2a; color: #68d391; }
+    .badge.expense { background: #3a1a1a; color: #fc8181; }
+    .badge.transfer { background: #1a2a3a; color: #63b3ed; }
+    .badge.planned { background: #3a3520; color: #ecc94b; }
+
+    .amount { font-weight: 600; }
+    .amount.pos { color: #68d391; }
+    .amount.neg { color: #fc8181; }
+
+    .del-btn { background: none; border: none; cursor: pointer; color: #4a5568; font-size: 0.9rem; padding: 4px 6px; border-radius: 4px; transition: all 0.2s; line-height: 1; }
+    .del-btn:hover { color: #fc8181; background: #3a1a1a; }
+    .edit-btn { background: none; border: none; cursor: pointer; color: #4a5568; font-size: 0.9rem; padding: 4px 6px; border-radius: 4px; transition: all 0.2s; line-height: 1; }
+    .edit-btn:hover { color: #a5b4fc; background: rgba(102,126,234,0.15); }
+
+    .status-toggle { background: none; border: 1px solid #4a5568; border-radius: 6px; padding: 2px 7px; cursor: pointer; font-size: 0.82rem; transition: all 0.2s; }
+    .status-toggle:hover { border-color: #a0aec0; }
+    .status-toggle.is-planned { border-color: #ecc94b; color: #ecc94b; }
+    .status-toggle.is-confirmed { border-color: #68d391; color: #68d391; }
+
+    /* Footer / Pagination */
+    .table-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      background: rgba(21,24,33,0.85);
+      border-top: 1px solid rgba(255,255,255,0.06);
+      backdrop-filter: blur(12px);
+      flex-shrink: 0;
+    }
+    .pagination { display: flex; gap: 6px; align-items: center; }
+    .page-btn { background: rgba(26,29,39,0.9); border: 1px solid #2d3748; border-radius: 6px; color: #a0aec0; padding: 6px 12px; font-size: 0.85rem; cursor: pointer; transition: all 0.15s; min-width: 36px; text-align: center; }
+    .page-btn:hover:not(:disabled) { background: #2d3748; color: #fff; }
+    .page-btn.active { background: #667eea; border-color: #667eea; color: #fff; font-weight: 600; }
+    .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .page-info { font-size: 0.82rem; color: #4a5568; }
+
+    .loading { color: #718096; font-size: 0.9rem; padding: 40px; text-align: center; }
+
+    /* Modal */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; }
+    .modal-overlay.open { display: flex; }
+    .modal { background: #1a1d27; border: 1px solid #2d3748; border-radius: 16px; padding: 32px; width: 100%; max-width: 480px; margin: 16px; }
+    .modal h2 { font-size: 1.1rem; margin-bottom: 24px; color: #fff; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; font-size: 0.82rem; color: #a0aec0; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; }
+    .form-group input, .form-group select { width: 100%; background: #2d3748; color: #e2e8f0; border: 1px solid #4a5568; border-radius: 8px; padding: 10px 12px; font-size: 0.95rem; }
+    .form-group input:focus, .form-group select:focus { outline: none; border-color: #667eea; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .category-preview { margin-top: 6px; font-size: 0.8rem; color: #718096; min-height: 18px; }
+    .category-preview.income { color: #68d391; }
+    .category-preview.expense { color: #fc8181; }
+    .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 24px; }
+    .btn { padding: 10px 20px; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; border: none; }
+    .btn-primary { background: #667eea; color: #fff; }
+    .btn-primary:hover { background: #5a67d8; }
+    .btn-primary:disabled { background: #4a5568; cursor: not-allowed; }
+    .btn-secondary { background: #2d3748; color: #a0aec0; }
+    .btn-secondary:hover { background: #4a5568; }
+
+    /* Transfer modal */
+    .form-row-3 { display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; }
+
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #2d3748; color: #e2e8f0; padding: 14px 20px; border-radius: 10px; font-size: 0.9rem; border-left: 4px solid #68d391; z-index: 300; transform: translateY(100px); opacity: 0; transition: all 0.3s ease; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.error { border-left-color: #fc8181; }
+  </style>
+</head>
+<body>
+
+<!-- Modal aggiungi/modifica transazione -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h2 id="modal-title">➕ Nuova transazione</h2>
+    <div class="form-row">
+      <div class="form-group"><label>Data</label><input type="date" id="tx-date" /></div>
+      <div class="form-group">
+        <label>Conto</label>
+        <select id="tx-account">
+          <option value="Unicredit">Unicredit</option>
+          <option value="Revolut">Revolut</option>
+          <option value="Contanti">Contanti</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Importo (negativo = spesa, positivo = entrata)</label>
+      <input type="number" id="tx-amount" step="0.01" placeholder="es. -25.50 oppure 2000" />
+    </div>
+    <div class="form-group">
+      <label>Sottocategoria</label>
+      <select id="tx-subcategory"><option value="">Caricamento...</option></select>
+      <div class="category-preview" id="category-preview"></div>
+    </div>
+    <div class="form-group">
+      <label>Note</label>
+      <input type="text" id="tx-notes" placeholder="Descrizione opzionale" />
+    </div>
+    <div class="form-group" style="display:flex;align-items:center;gap:10px">
+      <input type="checkbox" id="tx-planned" style="width:18px;height:18px;accent-color:#ecc94b;cursor:pointer" />
+      <label for="tx-planned" style="text-transform:none;letter-spacing:0;font-size:0.9rem;color:#e2e8f0;cursor:pointer;margin:0">Transazione pianificata</label>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Annulla</button>
+      <button class="btn btn-primary" id="btn-save" onclick="saveTransaction()">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal trasferimento -->
+<div class="modal-overlay" id="transfer-overlay">
+  <div class="modal">
+    <h2>🔄 Trasferimento tra conti</h2>
+    <div class="form-group"><label>Data</label><input type="date" id="tr-date" /></div>
+    <div class="form-row">
+      <div class="form-group"><label>Da conto</label>
+        <select id="tr-from"><option value="Unicredit">Unicredit</option><option value="Revolut">Revolut</option><option value="Contanti">Contanti</option></select>
+      </div>
+      <div style="display:flex;align-items:flex-end;justify-content:center;padding-bottom:10px"><span style="font-size:1.4rem;color:#667eea">→</span></div>
+      <div class="form-group"><label>A conto</label>
+        <select id="tr-to"><option value="Revolut">Revolut</option><option value="Unicredit">Unicredit</option><option value="Contanti">Contanti</option></select>
+      </div>
+    </div>
+    <div class="form-group"><label>Importo (sempre positivo)</label><input type="number" id="tr-amount" step="0.01" min="0.01" placeholder="es. 500" /></div>
+    <div class="form-group"><label>Note (opzionale)</label><input type="text" id="tr-notes" placeholder="es. Spostamento mensile" /></div>
+    <div class="modal-actions">
+      <button class="btn btn-secondary" onclick="closeTransferModal()">Annulla</button>
+      <button class="btn btn-primary" id="btn-transfer" onclick="saveTransfer()">Trasferisci</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <button class="nav-toggle" onclick="toggleSidebar()" title="Toggle sidebar">☰</button>
+  <div class="nav-brand">
+    <svg width="30" height="30" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="44" stroke="#a78bfa" stroke-width="9" fill="none"/>
+      <polygon points="58,8 32,54 50,54 42,92 68,46 50,46" fill="#a78bfa"/>
+    </svg>
+    <span>Budget <span style="color:#e2e8f0;font-weight:400">Transazioni</span></span>
+  </div>
+  <div class="nav-right">
+  </div>
+</nav>
+
+<div class="page-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-section-label">Navigazione</div>
+    <a href="/" class="sidebar-nav-link" data-tip="Overview"><span class="btn-icon">🏠</span><span class="btn-label"> Overview</span></a>
+    <a href="/transactions.html" class="sidebar-nav-link active" data-tip="Transazioni"><span class="btn-icon">📋</span><span class="btn-label"> Transazioni</span></a>
+    <a href="/categories.html" class="sidebar-nav-link" data-tip="Categorie"><span class="btn-icon">🍩</span><span class="btn-label"> Categorie</span></a>
+    <a href="/investments.html" class="sidebar-nav-link" data-tip="Investimenti"><span class="btn-icon">📈</span><span class="btn-label"> Investimenti</span></a>
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Azioni</div>
+    <button class="sidebar-btn primary" data-tip="Aggiungi" onclick="openModal()">
+      <span class="btn-icon">➕</span><span class="btn-label"> Aggiungi</span>
+    </button>
+    <button class="sidebar-btn" data-tip="Trasferisci" onclick="openTransferModal()">
+      <span class="btn-icon">🔄</span><span class="btn-label"> Trasferisci</span>
+    </button>
+    <button class="sidebar-btn" data-tip="Esporta" id="btn-export">
+      <span class="btn-icon">📥</span><span class="btn-label"> Esporta</span>
+    </button>
+    <button class="sidebar-btn" data-tip="Sync da Drive" id="btn-sync" style="display:none;color:#4ade80;border-color:rgba(74,222,128,0.3)" onclick="syncFromDrive()">
+      <span class="btn-icon">☁️</span><span class="btn-label"> Sync da Drive</span>
+    </button>
+    <button class="sidebar-btn" data-tip="Backup" id="btn-backup" style="display:none;color:#60a5fa;border-color:rgba(96,165,250,0.3)" onclick="backupToDrive()">
+      <span class="btn-icon">☁️</span><span class="btn-label"> Backup</span>
+    </button>
+  
+  </aside>
+
+  <!-- Main -->
+  <main class="main-content">
+
+    <!-- Filters bar -->
+    <div class="filters-bar">
+      <span class="filter-label">🔍</span>
+      <input type="text" class="filter-input" id="txf-search" placeholder="Cerca per descrizione..." oninput="applyFilters()" style="min-width:200px" />
+
+      <span class="filter-label">Mese:</span>
+      <select class="filter-select" id="txf-month" onchange="applyFilters()">
+        <option value="">Tutti</option>
+      </select>
+
+      <span class="filter-label">Categoria:</span>
+      <select class="filter-select" id="txf-category" onchange="onCategoryChange()">
+        <option value="">Tutte</option>
+      </select>
+
+      <select class="filter-select" id="txf-subcategory" onchange="applyFilters()" style="min-width:150px">
+        <option value="">Tutte le sottocategorie</option>
+      </select>
+
+      <span class="filter-label">Conto:</span>
+      <select class="filter-select" id="txf-account" onchange="applyFilters()">
+        <option value="">Tutti</option>
+        <option value="Unicredit">Unicredit</option>
+        <option value="Revolut">Revolut</option>
+        <option value="Contanti">Contanti</option>
+      </select>
+
+      <select class="filter-select" id="txf-type" onchange="applyFilters()">
+        <option value="">Tutti i tipi</option>
+        <option value="Expense">Expense</option>
+        <option value="Income">Income</option>
+        <option value="Transfer">Transfer</option>
+      </select>
+
+      <span class="results-count" id="txf-count"></span>
+    </div>
+
+    <!-- Table -->
+    <div class="table-area">
+      <table class="tx-table">
+        <thead>
+          <tr>
+            <th style="width:110px" onclick="sortBy('date')">Data</th>
+            <th style="width:100px" onclick="sortBy('account')">Conto</th>
+            <th onclick="sortBy('notes')">Descrizione</th>
+            <th style="width:130px" onclick="sortBy('category')">Categoria</th>
+            <th style="width:150px" onclick="sortBy('subcategory')">Sottocategoria</th>
+            <th style="width:100px">Tipo</th>
+            <th style="width:110px;text-align:right" onclick="sortBy('amount')">Importo</th>
+            <th style="width:100px;text-align:center">Azioni</th>
+          </tr>
+        </thead>
+        <tbody id="tx-body">
+          <tr><td colspan="8" class="loading">Caricamento...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Footer pagination -->
+    <div class="table-footer">
+      <div class="pagination" id="pagination"></div>
+      <div class="page-info" id="page-info"></div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // ── Sidebar toggle ─────────────────────────────────────
+  (function() {
+    if (localStorage.getItem('sidebarCollapsed') === 'true')
+      document.body.classList.add('sidebar-collapsed');
+  })();
+
+  function toggleSidebar() {
+    document.body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('sidebarCollapsed',
+      document.body.classList.contains('sidebar-collapsed'));
+  }
+
+  const API = '';
+  const fmt = (n) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
+
+  let allData = [];
+  let filteredData = [];
+  let sortCol = 'date';
+  let sortDir = 'desc';
+  let currentPage = 1;
+  const PAGE_SIZE = 50;
+  let subcategoriesData = [];
+  let allMonths = [];
+  let editingId = null;
+
+  // ── Init ────────────────────────────────────────────
+  async function init() {
+    // Load months
+    allMonths = await fetch(`${API}/api/months`).then(r => r.json());
+    const mSel = document.getElementById('txf-month');
+    allMonths.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      mSel.appendChild(opt);
+    });
+
+    // Load subcategories
+    subcategoriesData = await fetch(`${API}/api/subcategories`).then(r => r.json());
+    const catSel = document.getElementById('txf-category');
+    const cats = [...new Set(subcategoriesData.map(s => s.category))].sort();
+    cats.forEach(c => {
+      const opt = document.createElement('option');
+      opt.value = c; opt.textContent = c;
+      catSel.appendChild(opt);
+    });
+
+    // Preset current month
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    if (allMonths.includes(currentMonth)) {
+      document.getElementById('txf-month').value = currentMonth;
+    }
+
+    // Load all transactions
+    allData = await fetch(`${API}/api/transactions`).then(r => r.json());
+    applyFilters();
+
+    // Node role
+    fetch(`${API}/api/node-role`).then(r => r.json()).then(data => {
+      if (data.role === 'standby') document.getElementById('btn-sync').style.display = '';
+      if (data.role === 'primary') document.getElementById('btn-backup').style.display = '';
+    }).catch(() => {});
+  }
+
+  // ── Filters ─────────────────────────────────────────
+  function onCategoryChange() {
+    const cat = document.getElementById('txf-category').value;
+    const subSel = document.getElementById('txf-subcategory');
+    subSel.innerHTML = '<option value="">Tutte le sottocategorie</option>';
+    if (cat) {
+      const subs = subcategoriesData.filter(s => s.category === cat).map(s => s.subcategory).sort();
+      subs.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s; opt.textContent = s;
+        subSel.appendChild(opt);
+      });
+    }
+    applyFilters();
+  }
+
+  function applyFilters() {
+    const search   = document.getElementById('txf-search').value.toLowerCase().trim();
+    const month    = document.getElementById('txf-month').value;
+    const category = document.getElementById('txf-category').value;
+    const subcat   = document.getElementById('txf-subcategory').value;
+    const account  = document.getElementById('txf-account').value;
+    const type     = document.getElementById('txf-type').value;
+
+    filteredData = allData.filter(t => {
+      if (search   && !(t.Notes || '').toLowerCase().includes(search)) return false;
+      if (month    && !t.Date.startsWith(month)) return false;
+      if (category && t.Category !== category) return false;
+      if (subcat   && t.Subcategory !== subcat) return false;
+      if (account  && t.Account !== account) return false;
+      if (type     && t['Category Type'] !== type) return false;
+      return true;
+    });
+
+    sortData();
+    currentPage = 1;
+    render();
+  }
+
+  // ── Sort ────────────────────────────────────────────
+  function sortBy(col) {
+    if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    else { sortCol = col; sortDir = col === 'amount' ? 'asc' : 'desc'; }
+    document.querySelectorAll('.tx-table thead th').forEach(th => th.classList.remove('sort-asc','sort-desc'));
+    const colIndex = ['date','account','notes','category','subcategory',null,'amount',null];
+    const idx = colIndex.indexOf(col);
+    const headers = document.querySelectorAll('.tx-table thead th');
+    if (idx >= 0 && headers[idx]) headers[idx].classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+    sortData();
+    currentPage = 1;
+    render();
+  }
+
+  function sortData() {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    filteredData.sort((a, b) => {
+      let va, vb;
+      if (sortCol === 'date')        { va = a.Date; vb = b.Date; }
+      else if (sortCol === 'amount') { va = a['Income/(Expense)']; vb = b['Income/(Expense)']; }
+      else if (sortCol === 'account'){ va = a.Account; vb = b.Account; }
+      else if (sortCol === 'notes')  { va = (a.Notes||'').toLowerCase(); vb = (b.Notes||'').toLowerCase(); }
+      else if (sortCol === 'category')    { va = a.Category; vb = b.Category; }
+      else if (sortCol === 'subcategory') { va = a.Subcategory; vb = b.Subcategory; }
+      else { va = a.Date; vb = b.Date; }
+      return va < vb ? -dir : va > vb ? dir : 0;
+    });
+  }
+
+  // ── Render ───────────────────────────────────────────
+  function render() {
+    const total = filteredData.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    currentPage = Math.min(currentPage, totalPages);
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const pageData = filteredData.slice(start, start + PAGE_SIZE);
+
+    document.getElementById('txf-count').textContent =
+      total === allData.length ? `${total} transazioni` : `${total} di ${allData.length}`;
+
+    const tbody = document.getElementById('tx-body');
+    if (!pageData.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="loading">Nessuna transazione trovata</td></tr>';
+    } else {
+      tbody.innerHTML = pageData.map(t => `
+        <tr class="${t.status === 'planned' ? 'planned-row' : ''}">
+          <td style="white-space:nowrap">${t.Date}</td>
+          <td>${t.Account}</td>
+          <td style="color:#e2e8f0">${t.Notes || '—'}</td>
+          <td style="color:#a0aec0">${t.Category}</td>
+          <td>${t.Subcategory}</td>
+          <td>
+            <span class="badge ${t['Category Type'].toLowerCase()}">${t['Category Type']}</span>
+            ${t.status === 'planned' ? ' <span class="badge planned">⏳</span>' : ''}
+          </td>
+          <td class="amount ${t['Income/(Expense)'] >= 0 ? 'pos' : 'neg'}" style="text-align:right">${fmt(t['Income/(Expense)'])}</td>
+          <td style="text-align:center;white-space:nowrap">
+            <button class="status-toggle ${t.status === 'planned' ? 'is-planned' : 'is-confirmed'}" onclick="toggleStatus(${t.id}, this)" title="${t.status === 'planned' ? 'Conferma' : 'Segna come pianificata'}">${t.status === 'planned' ? '⏳' : '✅'}</button>
+            <button class="edit-btn" onclick="openEditModal(${t.id}, '${t.Date}', '${t.Account}', ${t['Income/(Expense)']}, '${t.Subcategory}', '${(t.Notes || '').replace(/'/g, "\\'")}', '${t.status}')" title="Modifica">✏️</button>
+            <button class="del-btn" onclick="deleteTransaction(${t.id}, this)" title="Elimina">🗑</button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    renderPagination(totalPages);
+    const end = Math.min(start + PAGE_SIZE, total);
+    document.getElementById('page-info').textContent = total > 0 ? `${start + 1}–${end} di ${total}` : '';
+  }
+
+  function renderPagination(totalPages) {
+    const pag = document.getElementById('pagination');
+    if (totalPages <= 1) { pag.innerHTML = ''; return; }
+    let html = `<button class="page-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`;
+    let s = Math.max(1, currentPage - 3);
+    let e = Math.min(totalPages, currentPage + 3);
+    if (s > 1) html += `<button class="page-btn" onclick="goPage(1)">1</button>${s > 2 ? '<span style="color:#4a5568;padding:0 4px">…</span>' : ''}`;
+    for (let i = s; i <= e; i++) html += `<button class="page-btn ${i===currentPage?'active':''}" onclick="goPage(${i})">${i}</button>`;
+    if (e < totalPages) html += `${e < totalPages-1 ? '<span style="color:#4a5568;padding:0 4px">…</span>' : ''}<button class="page-btn" onclick="goPage(${totalPages})">${totalPages}</button>`;
+    html += `<button class="page-btn" onclick="goPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>›</button>`;
+    pag.innerHTML = html;
+  }
+
+  function goPage(n) { currentPage = n; render(); document.querySelector('.table-area').scrollTop = 0; }
+
+  // ── CRUD ─────────────────────────────────────────────
+  async function loadSubcategoriesForModal() {
+    const sel = document.getElementById('tx-subcategory');
+    sel.innerHTML = '<option value="">Seleziona...</option>';
+    subcategoriesData.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.subcategory;
+      opt.textContent = `${s.subcategory} (${s.category})`;
+      sel.appendChild(opt);
+    });
+  }
+
+  function openModal() {
+    editingId = null;
+    document.getElementById('modal-title').textContent = '➕ Nuova transazione';
+    document.getElementById('btn-save').textContent = 'Salva';
+    document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('tx-amount').value = '';
+    document.getElementById('tx-notes').value = '';
+    document.getElementById('tx-planned').checked = false;
+    document.getElementById('tx-account').value = 'Revolut';
+    document.getElementById('tx-subcategory').value = '';
+    document.getElementById('category-preview').textContent = '';
+    document.getElementById('category-preview').className = 'category-preview';
+    document.getElementById('modal-overlay').classList.add('open');
+    loadSubcategoriesForModal();
+  }
+
+  async function openEditModal(id, date, account, amount, subcategory, notes, status) {
+    editingId = id;
+    loadSubcategoriesForModal();
+    document.getElementById('modal-title').textContent = '✏️ Modifica transazione';
+    document.getElementById('btn-save').textContent = 'Aggiorna';
+    document.getElementById('tx-date').value = date;
+    document.getElementById('tx-account').value = account;
+    document.getElementById('tx-amount').value = amount;
+    document.getElementById('tx-subcategory').value = subcategory;
+    document.getElementById('tx-notes').value = notes || '';
+    document.getElementById('tx-planned').checked = (status === 'planned');
+    const match = subcategoriesData.find(s => s.subcategory === subcategory);
+    const preview = document.getElementById('category-preview');
+    if (match) { preview.textContent = `→ ${match.category} · ${match.category_type}`; preview.className = 'category-preview ' + match.category_type.toLowerCase(); }
+    document.getElementById('modal-overlay').classList.add('open');
+  }
+
+  function closeModal() { editingId = null; document.getElementById('modal-overlay').classList.remove('open'); }
+  document.getElementById('modal-overlay').addEventListener('click', e => { if (e.target === document.getElementById('modal-overlay')) closeModal(); });
+
+  document.getElementById('tx-subcategory').addEventListener('change', e => {
+    const match = subcategoriesData.find(s => s.subcategory === e.target.value);
+    const preview = document.getElementById('category-preview');
+    if (match) { preview.textContent = `→ ${match.category} · ${match.category_type}`; preview.className = 'category-preview ' + match.category_type.toLowerCase(); }
+    else { preview.textContent = ''; preview.className = 'category-preview'; }
+  });
+
+  function showToast(msg, isError = false) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(() => { t.className = 'toast'; }, 3500);
+  }
+
+  async function saveTransaction() {
+    const date = document.getElementById('tx-date').value;
+    const account = document.getElementById('tx-account').value;
+    const amount = parseFloat(document.getElementById('tx-amount').value);
+    const subcategory = document.getElementById('tx-subcategory').value;
+    const notes = document.getElementById('tx-notes').value;
+    const status = document.getElementById('tx-planned').checked ? 'planned' : 'confirmed';
+    if (!date || isNaN(amount) || !subcategory) { showToast('Compila data, importo e sottocategoria', true); return; }
+    const btn = document.getElementById('btn-save');
+    btn.disabled = true; btn.textContent = 'Salvataggio...';
+    try {
+      const isEdit = editingId !== null;
+      const url = isEdit ? `${API}/api/transactions/${editingId}` : `${API}/api/transactions`;
+      const res = await fetch(url, { method: isEdit ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, account, amount, subcategory, notes, status }) });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Errore'); }
+      closeModal();
+      showToast(isEdit ? '✏️ Transazione aggiornata!' : '✅ Transazione salvata!');
+      // Reload data
+      allData = await fetch(`${API}/api/transactions`).then(r => r.json());
+      applyFilters();
+    } catch (err) { showToast('❌ ' + err.message, true); }
+    finally { btn.disabled = false; btn.textContent = editingId ? 'Aggiorna' : 'Salva'; }
+  }
+
+  async function deleteTransaction(id, btn) {
+    if (!confirm('Eliminare questa transazione?')) return;
+    const row = btn.closest('tr');
+    row.style.opacity = '0.4';
+    try {
+      const res = await fetch(`${API}/api/transactions/${id}`, { method: 'DELETE' });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Errore'); }
+      allData = allData.filter(t => t.id !== id);
+      showToast('🗑 Transazione eliminata');
+      applyFilters();
+    } catch (err) { row.style.opacity = '1'; showToast('❌ ' + err.message, true); }
+  }
+
+  async function toggleStatus(id, btn) {
+    try {
+      const res = await fetch(`${API}/api/transactions/${id}/toggle-status`, { method: 'PATCH' });
+      if (!res.ok) throw new Error('Errore toggle');
+      const data = await res.json();
+      showToast(data.new_status === 'planned' ? '⏳ Segnata come pianificata' : '✅ Confermata');
+      allData = await fetch(`${API}/api/transactions`).then(r => r.json());
+      applyFilters();
+    } catch (err) { showToast('❌ ' + err.message, true); }
+  }
+
+  // Transfer
+  function openTransferModal() {
+    document.getElementById('tr-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('tr-from').value = 'Unicredit';
+    document.getElementById('tr-to').value = 'Revolut';
+    document.getElementById('tr-amount').value = '';
+    document.getElementById('tr-notes').value = '';
+    document.getElementById('transfer-overlay').classList.add('open');
+  }
+  function closeTransferModal() { document.getElementById('transfer-overlay').classList.remove('open'); }
+  document.getElementById('transfer-overlay').addEventListener('click', e => { if (e.target === document.getElementById('transfer-overlay')) closeTransferModal(); });
+
+  async function saveTransfer() {
+    const date = document.getElementById('tr-date').value;
+    const from_account = document.getElementById('tr-from').value;
+    const to_account = document.getElementById('tr-to').value;
+    const amount = parseFloat(document.getElementById('tr-amount').value);
+    const notes = document.getElementById('tr-notes').value;
+    if (!date || isNaN(amount) || amount <= 0) { showToast('Compila data e importo', true); return; }
+    if (from_account === to_account) { showToast('I due conti devono essere diversi', true); return; }
+    const btn = document.getElementById('btn-transfer');
+    btn.disabled = true; btn.textContent = 'Trasferimento...';
+    try {
+      const res = await fetch(`${API}/api/transfer`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date, from_account, to_account, amount, notes }) });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Errore'); }
+      closeTransferModal();
+      showToast(`🔄 Trasferiti ${fmt(amount)} da ${from_account} a ${to_account}`);
+      allData = await fetch(`${API}/api/transactions`).then(r => r.json());
+      applyFilters();
+    } catch (err) { showToast('❌ ' + err.message, true); }
+    finally { btn.disabled = false; btn.textContent = 'Trasferisci'; }
+  }
+
+  document.getElementById('btn-export').addEventListener('click', () => { window.open(API + '/api/export'); });
+
+  async function syncFromDrive() {
+    if (!confirm("Sovrascrivere il database locale?")) return;
+    try {
+      const res = await fetch(`${API}/api/sync-from-drive`, { method: 'POST' });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Errore'); }
+      showToast('✅ Sync completato — ricarico...'); setTimeout(() => location.reload(), 1500);
+    } catch (err) { showToast('❌ ' + err.message, true); }
+  }
+
+  async function backupToDrive() {
+    if (!confirm('Eseguire backup su Google Drive?')) return;
+    try {
+      const res = await fetch(`${API}/api/backup-to-drive`, { method: 'POST' });
+      if (!res.ok) { const err = await res.json(); throw new Error(err.detail || 'Errore'); }
+      const data = await res.json(); showToast('✅ ' + data.message);
+    } catch (err) { showToast('❌ ' + err.message, true); }
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeTransferModal(); } });
+
+  if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}); }
+
+  init();
+</script>
+</body>
+</html>

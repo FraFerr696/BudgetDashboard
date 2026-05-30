@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+  <title>Categorie — Budget Dashboard</title>
+
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#0f1117" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="/icon-192.png" />
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0b0d14;
+      color: #e2e8f0;
+      min-height: 100vh;
+      position: relative;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 10% 20%,  rgba(88, 28, 135, 0.28) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 90% 10%,  rgba(49, 46, 129, 0.22) 0%, transparent 55%),
+        radial-gradient(ellipse 70% 60% at 80% 85%,  rgba(76, 29, 149, 0.20) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 20% 80%,  rgba(30, 27, 75,  0.30) 0%, transparent 50%),
+        radial-gradient(ellipse 90% 70% at 50% 50%,  rgba(15, 10, 40,  0.60) 0%, transparent 70%),
+        linear-gradient(135deg, #0b0d14 0%, #0e0b1f 40%, #0d0d18 70%, #0b0e16 100%);
+      animation: bgPulse 18s ease-in-out infinite alternate;
+      pointer-events: none;
+    }
+
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      background-image:
+        radial-gradient(circle 1px at 15% 25%,  rgba(167,139,250,0.25) 0%, transparent 1px),
+        radial-gradient(circle 1px at 72% 18%,  rgba(167,139,250,0.18) 0%, transparent 1px),
+        radial-gradient(circle 1px at 88% 55%,  rgba(139,92,246,0.20)  0%, transparent 1px),
+        radial-gradient(circle 2px at 5%  90%,  rgba(139,92,246,0.18)  0%, transparent 2px);
+      pointer-events: none;
+      animation: starFloat 25s ease-in-out infinite alternate;
+    }
+
+    @keyframes bgPulse {
+      0%   { background: radial-gradient(ellipse 80% 60% at 10% 20%, rgba(88,28,135,0.28) 0%, transparent 60%), linear-gradient(135deg, #0b0d14 0%, #0e0b1f 40%, #0d0d18 70%, #0b0e16 100%); }
+      100% { background: radial-gradient(ellipse 85% 58% at 18% 8%, rgba(99,40,200,0.25) 0%, transparent 60%), linear-gradient(140deg, #0b0d14 0%, #0e0c20 42%, #0c0d18 72%, #0b0e15 100%); }
+    }
+    @keyframes starFloat { 0% { transform: translate(0,0); } 100% { transform: translate(-8px,-12px); } }
+
+    /* Navbar */
+    .navbar {
+      display: flex;
+      align-items: center;
+      padding: 0 24px;
+      height: 80px;
+      background: rgba(15, 12, 28, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+        .nav-brand {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      font-size: 2rem;
+      font-weight: 700;
+      color: #a78bfa;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      pointer-events: none;
+      line-height: 1;
+    }
+    .nav-brand svg { flex-shrink: 0; }
+    .nav-right { margin-left: auto; }
+
+    /* Layout */
+    .page-layout { display: flex; min-height: calc(100vh - 60px); position: relative; z-index: 1; }
+
+    /* Sidebar */
+    .sidebar {
+      width: 220px;
+      flex-shrink: 0;
+      background: rgba(15, 12, 28, 0.80);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-right: 1px solid rgba(255,255,255,0.07);
+      display: flex;
+      flex-direction: column;
+      padding: 16px 12px;
+      gap: 4px;
+      position: sticky;
+      top: 80px;
+      height: calc(100vh - 80px);
+      overflow-y: auto;
+      overflow-x: hidden;
+      z-index: 10;
+      transition: width 0.25s ease;
+      scrollbar-width: none;
+    }
+    .nav-brand svg { flex-shrink: 0; display: block; }
+    body.sidebar-collapsed .sidebar { width: 52px; padding: 16px 8px; }
+
+    .sidebar-section-label {
+      font-size: 0.68rem;
+      font-weight: 700;
+      color: #4a5568;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 10px 8px 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      transition: opacity 0.15s, height 0.25s, padding 0.25s;
+    }
+    body.sidebar-collapsed .sidebar-section-label { opacity: 0; height: 0; padding: 0; pointer-events: none; }
+
+    .sidebar-divider { height: 1px; background: rgba(255,255,255,0.06); margin: 6px 0; flex-shrink: 0; }
+
+    .sidebar-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 10px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: 10px;
+      color: #a0aec0;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .sidebar-btn:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; border-color: rgba(255,255,255,0.14); }
+    .sidebar-btn .btn-icon { font-size: 1rem; flex-shrink: 0; }
+    .sidebar-btn .btn-label { transition: opacity 0.15s; }
+    body.sidebar-collapsed .sidebar-btn { justify-content: center; padding: 9px; }
+    body.sidebar-collapsed .sidebar-btn .btn-label { opacity: 0; width: 0; overflow: hidden; }
+    body.sidebar-collapsed .sidebar-btn::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: calc(100% + 10px);
+      top: 50%;
+      transform: translateY(-50%);
+      background: #1a1d27;
+      border: 1px solid rgba(255,255,255,0.14);
+      color: #e2e8f0;
+      font-size: 0.8rem;
+      padding: 5px 10px;
+      border-radius: 7px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 200;
+    }
+    body.sidebar-collapsed .sidebar-btn:hover::after { opacity: 1; }
+    .sidebar-btn.primary { background: rgba(102,126,234,0.15); border-color: rgba(102,126,234,0.35); color: #a5b4fc; }
+    .sidebar-btn.primary:hover { background: rgba(102,126,234,0.28); border-color: rgba(102,126,234,0.55); color: #c7d2fe; }
+
+    .sidebar-nav-link {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 9px 10px;
+      background: none;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      color: #718096;
+      font-size: 0.88rem;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: background 0.2s, color 0.2s, border-color 0.2s;
+      white-space: nowrap;
+      overflow: hidden;
+      flex-shrink: 0;
+      position: relative;
+    }
+    .sidebar-nav-link:hover { background: rgba(255,255,255,0.06); color: #e2e8f0; }
+    .sidebar-nav-link.active { background: rgba(167,139,250,0.12); border-color: rgba(167,139,250,0.2); color: #a78bfa; }
+    .sidebar-nav-link .btn-icon { font-size: 1rem; flex-shrink: 0; }
+    .sidebar-nav-link .btn-label { transition: opacity 0.15s; }
+    body.sidebar-collapsed .sidebar-nav-link { justify-content: center; padding: 9px; }
+    body.sidebar-collapsed .sidebar-nav-link .btn-label { opacity: 0; width: 0; overflow: hidden; }
+    body.sidebar-collapsed .sidebar-nav-link::after {
+      content: attr(data-tip);
+      position: absolute;
+      left: calc(100% + 10px);
+      top: 50%;
+      transform: translateY(-50%);
+      background: #1a1d27;
+      border: 1px solid rgba(255,255,255,0.14);
+      color: #e2e8f0;
+      font-size: 0.8rem;
+      padding: 5px 10px;
+      border-radius: 7px;
+      white-space: nowrap;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+      z-index: 200;
+    }
+    body.sidebar-collapsed .sidebar-nav-link:hover::after { opacity: 1; }
+
+    .sidebar-filter-group { display: flex; flex-direction: column; gap: 5px; flex-shrink: 0; }
+    .sidebar-filter-group label { font-size: 0.73rem; color: #718096; padding-left: 2px; white-space: nowrap; }
+    body.sidebar-collapsed .sidebar-filter-group { display: none; }
+
+    .nav-toggle {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: #718096;
+      font-size: 1.15rem;
+      padding: 6px 10px;
+      border-radius: 8px;
+      transition: all 0.2s;
+      line-height: 1;
+      margin-right: 4px;
+    }
+    .nav-toggle:hover { background: rgba(255,255,255,0.08); color: #e2e8f0; }
+
+
+    select { background: rgba(45,55,72,0.8); color: #e2e8f0; border: 1px solid #4a5568; border-radius: 8px; padding: 7px 10px; font-size: 0.85rem; cursor: pointer; width: 100%; }
+    select:focus { outline: none; border-color: #667eea; }
+
+    /* Main content */
+    .main-content { flex: 1; min-width: 0; padding: 24px 28px; overflow-x: hidden; }
+
+    /* Card */
+    .card {
+      background: rgba(26, 29, 39, 0.70);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 12px;
+      padding: 22px;
+      border: 1px solid rgba(255,255,255,0.07);
+      margin-bottom: 20px;
+    }
+    .card h2 { font-size: 0.88rem; font-weight: 600; color: #a0aec0; margin-bottom: 18px; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+    .card h2 .collapse-icon { font-size: 0.75rem; color: #4a5568; transition: transform 0.3s; }
+    .card.collapsed h2 { margin-bottom: 0; }
+    .card.collapsed h2 .collapse-icon { transform: rotate(-90deg); }
+    .card.collapsed .card-body { display: none; }
+
+    /* Two col layout */
+    .two-col { display: grid; grid-template-columns: 420px 1fr; gap: 20px; margin-bottom: 20px; }
+    @media (max-width: 1100px) { .two-col { grid-template-columns: 1fr; } }
+
+    .chart-container { position: relative; height: 360px; }
+
+    /* Category bars */
+    .cat-bars { display: flex; flex-direction: column; gap: 12px; }
+    .cat-bar-item { display: flex; flex-direction: column; gap: 4px; }
+    .cat-bar-header { display: flex; justify-content: space-between; align-items: baseline; }
+    .cat-bar-name { font-size: 0.88rem; color: #e2e8f0; font-weight: 500; }
+    .cat-bar-amount { font-size: 0.85rem; color: #fc8181; font-weight: 600; }
+    .cat-bar-pct { font-size: 0.75rem; color: #718096; }
+    .cat-bar-track { height: 6px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+    .cat-bar-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+
+    /* Subcategory table */
+    .sub-table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+    .sub-table thead th { background: rgba(45,55,72,0.8); padding: 10px 14px; text-align: left; color: #a0aec0; font-weight: 600; position: sticky; top: 0; }
+    .sub-table tbody tr { border-bottom: 1px solid rgba(45,55,72,0.4); transition: background 0.15s; }
+    .sub-table tbody tr:hover { background: rgba(45,55,72,0.4); }
+    .sub-table tbody td { padding: 10px 14px; }
+    .sub-table tfoot td { padding: 10px 14px; border-top: 2px solid #4a5568; }
+
+    .bar-track { background: rgba(255,255,255,0.06); border-radius: 3px; height: 7px; overflow: hidden; min-width: 80px; }
+    .bar-fill { height: 100%; border-radius: 3px; background: #fc8181; }
+
+    .loading { color: #718096; font-size: 0.9rem; padding: 40px; text-align: center; }
+
+    .toast { position: fixed; bottom: 24px; right: 24px; background: #2d3748; color: #e2e8f0; padding: 14px 20px; border-radius: 10px; font-size: 0.9rem; border-left: 4px solid #68d391; z-index: 300; transform: translateY(100px); opacity: 0; transition: all 0.3s ease; }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast.error { border-left-color: #fc8181; }
+  </style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <button class="nav-toggle" onclick="toggleSidebar()" title="Toggle sidebar">☰</button>
+  <div class="nav-brand">
+    <svg width="22" height="22" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="50" cy="50" r="44" stroke="#a78bfa" stroke-width="9" fill="none"/>
+      <polygon points="58,8 32,54 50,54 42,92 68,46 50,46" fill="#a78bfa"/>
+    </svg>
+    <span>Budget <span style="color:#e2e8f0;font-weight:400">Categorie</span></span>
+  </div>
+  <div class="nav-right">
+  </div>
+</nav>
+
+<div class="page-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-section-label">Navigazione</div>
+    <a href="/" class="sidebar-nav-link" data-tip="Overview"><span class="btn-icon">🏠</span><span class="btn-label"> Overview</span></a>
+    <a href="/transactions.html" class="sidebar-nav-link" data-tip="Transazioni"><span class="btn-icon">📋</span><span class="btn-label"> Transazioni</span></a>
+    <a href="/categories.html" class="sidebar-nav-link active" data-tip="Categorie"><span class="btn-icon">🍩</span><span class="btn-label"> Categorie</span></a>
+    <a href="/investments.html" class="sidebar-nav-link" data-tip="Investimenti"><span class="btn-icon">📈</span><span class="btn-label"> Investimenti</span></a>
+
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Filtri</div>
+
+    <div class="sidebar-filter-group">
+      <label>Visualizza</label>
+      <select id="filter-mode">
+        <option value="month">Mese</option>
+        <option value="year">Anno</option>
+        <option value="range">Periodo</option>
+        <option value="all">Tutti</option>
+      </select>
+    </div>
+
+    <div class="sidebar-filter-group" id="filter-month-group">
+      <label>Mese</label>
+      <select id="month-filter"><option value="">Tutti i mesi</option></select>
+    </div>
+
+    <div class="sidebar-filter-group" id="filter-year-group" style="display:none">
+      <label>Anno</label>
+      <select id="year-filter"></select>
+    </div>
+
+    <div id="filter-range-group" style="display:none">
+      <div class="sidebar-filter-group">
+        <label>Da</label>
+        <select id="range-from"></select>
+      </div>
+      <div class="sidebar-filter-group" style="margin-top:8px">
+        <label>A</label>
+        <select id="range-to"></select>
+      </div>
+    </div>
+
+    <div class="sidebar-divider"></div>
+    <div class="sidebar-section-label">Sotto-filtri</div>
+
+    <div class="sidebar-filter-group">
+      <label>Categoria</label>
+      <select id="sub-category-filter" onchange="onCatFilterChange()">
+        <option value="">Tutte</option>
+      </select>
+    </div>
+
+    <div class="sidebar-filter-group">
+      <label>Sottocategoria</label>
+      <select id="sub-subcategory-filter" onchange="renderSubTable()">
+        <option value="">Tutte</option>
+      </select>
+    </div>
+
+  </aside>
+
+  <!-- Main content -->
+  <main class="main-content">
+
+    <!-- Top row: donut + category bars -->
+    <div class="two-col">
+
+      <!-- Donut chart -->
+      <div class="card" style="margin-bottom:0">
+        <h2 onclick="toggleCard(this)">Spese per categoria <span class="collapse-icon">▼</span></h2>
+        <div class="card-body">
+          <div class="chart-container">
+            <canvas id="chart-category"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Category breakdown bars -->
+      <div class="card" style="margin-bottom:0;overflow-y:auto;max-height:420px">
+        <h2 onclick="toggleCard(this)" style="margin-bottom:14px">Distribuzione <span class="collapse-icon">▼</span></h2>
+        <div class="card-body">
+          <div class="cat-bars" id="cat-bars">
+            <p class="loading">Caricamento...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subcategory table -->
+    <div class="card">
+      <h2 onclick="toggleCard(this)">Spese per sottocategoria <span class="collapse-icon">▼</span></h2>
+      <div class="card-body">
+        <div style="overflow-x:auto">
+          <div id="subtable-content"><p class="loading">Caricamento...</p></div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // ── Sidebar toggle ─────────────────────────────────────
+  (function() {
+    if (localStorage.getItem('sidebarCollapsed') === 'true')
+      document.body.classList.add('sidebar-collapsed');
+  })();
+
+  function toggleSidebar() {
+    document.body.classList.toggle('sidebar-collapsed');
+    localStorage.setItem('sidebarCollapsed',
+      document.body.classList.contains('sidebar-collapsed'));
+  }
+
+  const API = '';
+  let charts = {};
+  const fmt = (n) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
+
+  let allMonths = [];
+  let allSubcategoryData = [];
+  let allCategoryData = [];
+
+  function toggleCard(h2) { h2.closest('.card').classList.toggle('collapsed'); }
+
+  // ── Months & filter init ──────────────────────────────
+  async function loadMonths() {
+    allMonths = await fetch(`${API}/api/months`).then(r => r.json());
+
+    const sel = document.getElementById('month-filter');
+    allMonths.forEach(m => { const opt = document.createElement('option'); opt.value = m; opt.textContent = m; sel.appendChild(opt); });
+
+    const years = [...new Set(allMonths.map(m => m.slice(0,4)))];
+    const ySel = document.getElementById('year-filter');
+    years.forEach(y => { const opt = document.createElement('option'); opt.value = y; opt.textContent = y; ySel.appendChild(opt); });
+    const cy = new Date().toISOString().slice(0,4);
+    if (years.includes(cy)) ySel.value = cy;
+
+    ['range-from','range-to'].forEach(id => {
+      const rs = document.getElementById(id);
+      allMonths.forEach(m => { const opt = document.createElement('option'); opt.value = m; opt.textContent = m; rs.appendChild(opt); });
+    });
+    if (allMonths.length) { document.getElementById('range-from').value = allMonths[0]; document.getElementById('range-to').value = allMonths[allMonths.length-1]; }
+  }
+
+  function getActiveMonths() {
+    const mode = document.getElementById('filter-mode').value;
+    if (mode === 'all') return null;
+    if (mode === 'month') { const v = document.getElementById('month-filter').value; return v ? [v] : null; }
+    if (mode === 'year') { const y = document.getElementById('year-filter').value; return allMonths.filter(m => m.startsWith(y)); }
+    if (mode === 'range') { const f = document.getElementById('range-from').value, t = document.getElementById('range-to').value; return allMonths.filter(m => m >= f && m <= t); }
+    return null;
+  }
+
+  function updateFilterVisibility() {
+    const mode = document.getElementById('filter-mode').value;
+    document.getElementById('filter-month-group').style.display = mode === 'month' ? '' : 'none';
+    document.getElementById('filter-year-group').style.display = mode === 'year' ? '' : 'none';
+    document.getElementById('filter-range-group').style.display = mode === 'range' ? '' : 'none';
+  }
+
+  // ── Load data ────────────────────────────────────────
+  const COLORS = ['#fc8181','#f6ad55','#faf089','#68d391','#63b3ed','#76e4f7','#b794f4','#ed64a6','#90cdf4','#fbd38d','#9ae6b4','#feb2b2','#c6f6d5','#bee3f8','#e9d8fd'];
+
+  async function loadCategoryData(months) {
+    if (!months || months.length <= 1) {
+      const q = months ? `?month=${months[0]}` : '';
+      return await fetch(`${API}/api/by-category${q}`).then(r => r.json());
+    }
+    const results = await Promise.all(months.map(m => fetch(`${API}/api/by-category?month=${m}`).then(r => r.json())));
+    const agg = {};
+    results.flat().forEach(d => { agg[d.category] = (agg[d.category] || 0) + (d.amount || d.total || 0); });
+    return Object.entries(agg).map(([category, total]) => ({ category, total })).sort((a,b) => b.total - a.total);
+  }
+
+  async function loadSubcategoryData(months) {
+    // Singolo mese o tutti
+    if (!months || months.length === 1) {
+      const q = months ? `?month=${months[0]}` : '';
+      return await fetch(`${API}/api/by-subcategory${q}`).then(r => r.json());
+    }
+    // Multi-mese: aggrega per subcategory
+    const results = await Promise.all(
+      months.map(m => fetch(`${API}/api/by-subcategory?month=${m}`).then(r => r.json()))
+    );
+    const agg = {};
+    results.flat().forEach(d => {
+      const key = `${d.category}||${d.subcategory}`;
+      if (!agg[key]) agg[key] = { category: d.category, subcategory: d.subcategory, amount: 0 };
+      agg[key].amount += d.amount;
+    });
+    return Object.values(agg).sort((a, b) => b.amount - a.amount);
+  }
+
+  // ── Render category donut ────────────────────────────
+  function renderCategoryChart(data) {
+    if (charts['category']) { charts['category'].destroy(); delete charts['category']; }
+    const ctx = document.getElementById('chart-category').getContext('2d');
+    charts['category'] = new Chart(ctx, {
+      type: 'doughnut',
+      data: {
+        labels: data.map(d => d.category),
+        datasets: [{ data: data.map(d => d.amount || d.total), backgroundColor: COLORS, borderWidth: 2, borderColor: '#1a1d27' }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'right', labels: { color: '#a0aec0', padding: 12, font: { size: 11 } } },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${fmt(ctx.raw)}` } }
+        }
+      }
+    });
+  }
+
+  // ── Render category bars ─────────────────────────────
+  function renderCategoryBars(data) {
+    const total = data.reduce((s, d) => s + (d.amount || d.total || 0), 0);
+    const max = data.length ? Math.max(...data.map(d => d.amount || d.total || 0)) : 1;
+    const bars = document.getElementById('cat-bars');
+    if (!data.length) { bars.innerHTML = '<p class="loading">Nessun dato</p>'; return; }
+    bars.innerHTML = data.map((d, i) => {
+      const val = d.amount || d.total || 0;
+      const pct = total > 0 ? (val / total * 100).toFixed(1) : 0;
+      const barW = (val / max * 100).toFixed(1);
+      return `
+        <div class="cat-bar-item">
+          <div class="cat-bar-header">
+            <span class="cat-bar-name">${d.category}</span>
+            <div style="display:flex;gap:10px;align-items:baseline">
+              <span class="cat-bar-amount">${fmt(val)}</span>
+              <span class="cat-bar-pct">${pct}%</span>
+            </div>
+          </div>
+          <div class="cat-bar-track">
+            <div class="cat-bar-fill" style="width:${barW}%;background:${COLORS[i % COLORS.length]}"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  // ── Render subcategory table ─────────────────────────
+  function onCatFilterChange() {
+    const cat = document.getElementById('sub-category-filter').value;
+    const subSel = document.getElementById('sub-subcategory-filter');
+    subSel.innerHTML = '<option value="">Tutte</option>';
+    const filtered = cat ? allSubcategoryData.filter(d => d.category === cat) : allSubcategoryData;
+    const subs = [...new Set(filtered.map(d => d.subcategory))].sort();
+    subs.forEach(s => { const opt = document.createElement('option'); opt.value = s; opt.textContent = s; subSel.appendChild(opt); });
+    renderSubTable();
+  }
+
+  function renderSubTable() {
+    const cat = document.getElementById('sub-category-filter').value;
+    const sub = document.getElementById('sub-subcategory-filter').value;
+
+    let data = allSubcategoryData;
+    if (cat) data = data.filter(d => d.category === cat);
+    if (sub) data = data.filter(d => d.subcategory === sub);
+
+    const total = data.reduce((s, d) => s + d.amount, 0);
+    const maxAmount = data.length ? Math.max(...data.map(d => d.amount)) : 1;
+
+    const content = document.getElementById('subtable-content');
+    if (!data.length) { content.innerHTML = '<p class="loading">Nessun dato</p>'; return; }
+
+    content.innerHTML = `
+      <table class="sub-table">
+        <thead>
+          <tr>
+            <th>Categoria</th>
+            <th>Sottocategoria</th>
+            <th style="width:35%">Distribuzione</th>
+            <th style="text-align:right">Importo</th>
+            <th style="text-align:right">%</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${data.map(d => {
+            const pct = total > 0 ? (d.amount / total * 100).toFixed(1) : 0;
+            const barW = (d.amount / maxAmount * 100).toFixed(1);
+            return `
+              <tr>
+                <td style="color:#a0aec0">${d.category}</td>
+                <td style="color:#e2e8f0;font-weight:500">${d.subcategory}</td>
+                <td>
+                  <div class="bar-track">
+                    <div class="bar-fill" style="width:${barW}%"></div>
+                  </div>
+                </td>
+                <td style="text-align:right;color:#fc8181;font-weight:600">${fmt(d.amount)}</td>
+                <td style="text-align:right;color:#718096">${pct}%</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="3" style="color:#a0aec0;font-weight:600">Totale</td>
+            <td style="text-align:right;color:#e2e8f0;font-weight:700">${fmt(total)}</td>
+            <td style="text-align:right;color:#718096">100%</td>
+          </tr>
+        </tfoot>
+      </table>
+    `;
+  }
+
+  // ── Populate subcategory filter options ───────────────
+  function populateCatFilter() {
+    const catSel = document.getElementById('sub-category-filter');
+    const prevCat = catSel.value;
+    catSel.innerHTML = '<option value="">Tutte le categorie</option>';
+    const cats = [...new Set(allSubcategoryData.map(d => d.category))].sort();
+    cats.forEach(c => { const opt = document.createElement('option'); opt.value = c; opt.textContent = c; if (c === prevCat) opt.selected = true; catSel.appendChild(opt); });
+  }
+
+  // ── Refresh ──────────────────────────────────────────
+  async function refresh() {
+    const months = getActiveMonths();
+
+    const [catData, subData] = await Promise.all([
+      loadCategoryData(months),
+      loadSubcategoryData(months)
+    ]);
+
+    allCategoryData = catData;
+    allSubcategoryData = subData;
+
+    renderCategoryChart(catData);
+    renderCategoryBars(catData);
+    populateCatFilter();
+    renderSubTable();
+  }
+
+  document.getElementById('filter-mode').addEventListener('change', () => { updateFilterVisibility(); refresh(); });
+  document.getElementById('month-filter').addEventListener('change', refresh);
+  document.getElementById('year-filter').addEventListener('change', refresh);
+  document.getElementById('range-from').addEventListener('change', refresh);
+  document.getElementById('range-to').addEventListener('change', refresh);
+
+  async function init() {
+    await loadMonths();
+    updateFilterVisibility();
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    const sel = document.getElementById('month-filter');
+    const exists = [...sel.options].some(o => o.value === currentMonth);
+    if (exists) sel.value = currentMonth;
+    await refresh();
+  }
+
+  if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}); }
+
+  init();
+</script>
+</body>
+</html>

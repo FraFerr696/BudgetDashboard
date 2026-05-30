@@ -1,4 +1,4 @@
-const CACHE_NAME = 'budget-v3';
+const CACHE_NAME = 'budget-v6';
 const STATIC_ASSETS = [
   '/manifest.json',
   '/icon-192.png',
@@ -35,7 +35,7 @@ self.addEventListener('fetch', (event) => {
 
   // index.html: network-first, fallback cache
   // Così ogni modifica è visibile subito senza rinominare la cache
-  if (url.pathname === '/' || url.pathname === '/index.html') {
+  if (url.pathname === '/' || url.pathname.endsWith('.html')) {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
