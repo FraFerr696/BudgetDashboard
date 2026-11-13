@@ -490,6 +490,50 @@
     }
     .toast.show { transform: translateY(0); opacity: 1; }
     .toast.error { border-left-color: #fc8181; }
+
+    /* ── Subcategory autocomplete ─────────────────── */
+    .autocomplete-wrapper { position: relative; }
+    .autocomplete-wrapper input[type="text"] {
+      width: 100%;
+      background: #2d3748;
+      color: #e2e8f0;
+      border: 1px solid #4a5568;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-size: 0.95rem;
+    }
+    .autocomplete-wrapper input[type="text"]:focus { outline: none; border-color: #667eea; }
+    .autocomplete-wrapper input[type="text"].has-value { border-color: #68d391; }
+    .autocomplete-wrapper input[type="text"].invalid { border-color: #fc8181; }
+    .autocomplete-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      background: #1e2130;
+      border: 1px solid #4a5568;
+      border-radius: 10px;
+      max-height: 240px;
+      overflow-y: auto;
+      z-index: 500;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    .autocomplete-dropdown.open { display: block; }
+    .autocomplete-item {
+      padding: 9px 14px;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      transition: background 0.15s;
+    }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:hover,
+    .autocomplete-item.highlighted { background: rgba(102,126,234,0.2); }
+    .autocomplete-item .ac-sub { font-size: 0.9rem; color: #e2e8f0; font-weight: 500; }
+    .autocomplete-item .ac-cat { font-size: 0.75rem; color: #718096; background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
+    .autocomplete-no-results { padding: 12px 14px; color: #718096; font-size: 0.88rem; text-align: center; }
   </style>
 </head>
 <body>
@@ -518,7 +562,11 @@
     </div>
     <div class="form-group">
       <label>Sottocategoria</label>
-      <select id="tx-subcategory"><option value="">Caricamento...</option></select>
+      <div class="autocomplete-wrapper">
+        <input type="text" id="tx-subcategory-input" placeholder="Cerca per nome o categoria..." autocomplete="off" />
+        <input type="hidden" id="tx-subcategory" />
+        <div class="autocomplete-dropdown" id="tx-subcategory-dropdown"></div>
+      </div>
       <div class="category-preview" id="category-preview"></div>
     </div>
     <div class="form-group">
@@ -1010,19 +1058,138 @@
 
   async function loadSubcategoriesForModal() {
     subcategoriesData = await fetch(`${API}/api/subcategories`).then(r => r.json());
-    const sel = document.getElementById('tx-subcategory');
-    sel.innerHTML = '<option value="">Seleziona...</option>';
-    subcategoriesData.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.subcategory;
-      opt.textContent = `${s.subcategory} (${s.category})`;
-      sel.appendChild(opt);
+    initSubcategoryAutocomplete();
+  }
+
+  // ── Subcategory autocomplete ───────────────────────
+  function initSubcategoryAutocomplete() {
+    const input    = document.getElementById('tx-subcategory-input');
+    const hidden   = document.getElementById('tx-subcategory');
+    const dropdown = document.getElementById('tx-subcategory-dropdown');
+    let highlightedIdx = -1;
+
+    function updatePreview(subcategory) {
+      const preview = document.getElementById('category-preview');
+      const match = subcategoriesData.find(s => s.subcategory === subcategory);
+      if (match) {
+        preview.textContent = `→ ${match.category} · ${match.category_type}`;
+        preview.className = 'category-preview ' + match.category_type.toLowerCase();
+      } else {
+        preview.textContent = '';
+        preview.className = 'category-preview';
+      }
+    }
+
+    function selectItem(subcategory) {
+      hidden.value = subcategory;
+      input.value  = subcategory;
+      input.classList.add('has-value');
+      input.classList.remove('invalid');
+      closeDropdown();
+      updatePreview(subcategory);
+    }
+
+    function closeDropdown() {
+      dropdown.classList.remove('open');
+      highlightedIdx = -1;
+    }
+
+    function getFilteredItems(q) {
+      if (!q) return subcategoriesData;
+      const lq = q.toLowerCase();
+      const exact   = subcategoriesData.filter(s => s.subcategory.toLowerCase().startsWith(lq));
+      const partial = subcategoriesData.filter(s =>
+        !s.subcategory.toLowerCase().startsWith(lq) && (
+          s.subcategory.toLowerCase().includes(lq) ||
+          s.category.toLowerCase().includes(lq)
+        )
+      );
+      return [...exact, ...partial];
+    }
+
+    function openDropdown(items) {
+      highlightedIdx = -1;
+      dropdown.innerHTML = '';
+      if (!items.length) {
+        dropdown.innerHTML = '<div class="autocomplete-no-results">Nessun risultato</div>';
+      } else {
+        items.forEach((s) => {
+          const div = document.createElement('div');
+          div.className = 'autocomplete-item';
+          div.innerHTML = `<span class="ac-sub">${s.subcategory}</span><span class="ac-cat">${s.category}</span>`;
+          div.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            selectItem(s.subcategory);
+          });
+          dropdown.appendChild(div);
+        });
+      }
+      dropdown.classList.add('open');
+    }
+
+    input.addEventListener('input', () => {
+      hidden.value = '';
+      input.classList.remove('has-value', 'invalid');
+      openDropdown(getFilteredItems(input.value));
     });
+
+    input.addEventListener('focus', () => {
+      openDropdown(getFilteredItems(input.value));
+    });
+
+    input.addEventListener('blur', () => {
+      setTimeout(() => {
+        closeDropdown();
+        if (input.value && !hidden.value) input.classList.add('invalid');
+      }, 150);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      const items = dropdown.querySelectorAll('.autocomplete-item');
+      if (!items.length) return;
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        highlightedIdx = Math.min(highlightedIdx + 1, items.length - 1);
+        items.forEach((el, i) => el.classList.toggle('highlighted', i === highlightedIdx));
+        items[highlightedIdx]?.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        highlightedIdx = Math.max(highlightedIdx - 1, 0);
+        items.forEach((el, i) => el.classList.toggle('highlighted', i === highlightedIdx));
+        items[highlightedIdx]?.scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (highlightedIdx >= 0) items[highlightedIdx]?.dispatchEvent(new MouseEvent('mousedown'));
+      } else if (e.key === 'Escape') {
+        closeDropdown();
+        input.blur();
+      }
+    });
+  }
+
+  function resetSubcategoryInput() {
+    const input  = document.getElementById('tx-subcategory-input');
+    const hidden = document.getElementById('tx-subcategory');
+    input.value  = '';
+    hidden.value = '';
+    input.classList.remove('has-value', 'invalid');
+    document.getElementById('tx-subcategory-dropdown').classList.remove('open');
+    document.getElementById('category-preview').textContent = '';
+    document.getElementById('category-preview').className = 'category-preview';
+  }
+
+  function setSubcategoryInput(subcategory) {
+    const input  = document.getElementById('tx-subcategory-input');
+    const hidden = document.getElementById('tx-subcategory');
+    input.value  = subcategory;
+    hidden.value = subcategory;
+    input.classList.add('has-value');
+    input.classList.remove('invalid');
   }
 
   let editingId = null;
 
-  function openModal() {
+  async function openModal() {
     editingId = null;
     document.getElementById('modal-title').textContent = '➕ Nuova transazione';
     document.getElementById('btn-save').textContent = 'Salva';
@@ -1031,11 +1198,10 @@
     document.getElementById('tx-notes').value = '';
     document.getElementById('tx-planned').checked = false;
     document.getElementById('tx-account').value = 'Revolut';
-    document.getElementById('tx-subcategory').value = '';
-    document.getElementById('category-preview').textContent = '';
-    document.getElementById('category-preview').className = 'category-preview';
+    resetSubcategoryInput();
     document.getElementById('modal-overlay').classList.add('open');
-    if (subcategoriesData.length === 0) loadSubcategoriesForModal();
+    if (subcategoriesData.length === 0) await loadSubcategoriesForModal();
+    setTimeout(() => document.getElementById('tx-subcategory-input').focus(), 80);
   }
 
   async function openEditModal(id, date, account, amount, subcategory, notes, status) {
@@ -1046,9 +1212,9 @@
     document.getElementById('tx-date').value = date;
     document.getElementById('tx-account').value = account;
     document.getElementById('tx-amount').value = amount;
-    document.getElementById('tx-subcategory').value = subcategory;
     document.getElementById('tx-notes').value = notes || '';
     document.getElementById('tx-planned').checked = (status === 'planned');
+    setSubcategoryInput(subcategory);
     const match = subcategoriesData.find(s => s.subcategory === subcategory);
     const preview = document.getElementById('category-preview');
     if (match) { preview.textContent = `→ ${match.category} · ${match.category_type}`; preview.className = 'category-preview ' + match.category_type.toLowerCase(); }
@@ -1058,13 +1224,6 @@
   function closeModal() { editingId = null; document.getElementById('modal-overlay').classList.remove('open'); }
 
   document.getElementById('modal-overlay').addEventListener('click', (e) => { if (e.target === document.getElementById('modal-overlay')) closeModal(); });
-
-  document.getElementById('tx-subcategory').addEventListener('change', (e) => {
-    const preview = document.getElementById('category-preview');
-    const match = subcategoriesData.find(s => s.subcategory === e.target.value);
-    if (match) { preview.textContent = `→ ${match.category} · ${match.category_type}`; preview.className = 'category-preview ' + match.category_type.toLowerCase(); }
-    else { preview.textContent = ''; preview.className = 'category-preview'; }
-  });
 
   function showToast(msg, isError = false) {
     const t = document.getElementById('toast');
