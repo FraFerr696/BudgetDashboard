@@ -480,6 +480,79 @@ tbody tr:last-child td { border-bottom: none; }
   .kpi-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
 }
+
+/* ── Bottom nav (mobile) ─────────────────────────────────────── */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 150;
+  background: rgba(15, 12, 28, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  justify-content: space-around;
+  align-items: center;
+}
+.bottom-nav-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  padding: 6px 2px;
+  color: #718096;
+  text-decoration: none;
+  font-size: 0.65rem;
+  font-weight: 500;
+  border-radius: 10px;
+  transition: color 0.2s, background 0.2s;
+}
+.bottom-nav-link .bn-icon { font-size: 1.3rem; line-height: 1; }
+.bottom-nav-link.active { color: #a78bfa; background: rgba(167,139,250,0.12); }
+
+/* ── Sidebar as off-canvas drawer + compact typography (mobile) ── */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 290;
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    padding-top: 92px;
+    width: 250px !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.25s ease;
+    z-index: 300;
+    box-shadow: 10px 0 30px rgba(0,0,0,0.6);
+  }
+  body.mobile-nav-open .sidebar { transform: translateX(0) !important; }
+  body.mobile-nav-open .sidebar-backdrop { display: block; }
+  body.mobile-nav-open .sidebar .btn-label,
+  body.mobile-nav-open .sidebar .sidebar-section-label,
+  body.mobile-nav-open .sidebar .sidebar-filter-group { opacity: 1 !important; width: auto !important; height: auto !important; padding: inherit; }
+
+  .navbar { padding: 0 14px; }
+  .nav-brand { font-size: 1.15rem; gap: 6px; }
+  .nav-brand svg { width: 20px; height: 20px; }
+  .kpi-value { font-size: 1.15rem; }
+  .kpi-label { font-size: 0.68rem; }
+  .kpi-card { padding: 12px 14px; }
+}
+
+@media (max-width: 720px) {
+  .bottom-nav { display: flex; }
+  .main-content { padding-bottom: 76px; }
+}
 </style>
 </head>
 <body>
@@ -502,6 +575,7 @@ tbody tr:last-child td { border-bottom: none; }
       </div>
     </div>
     <div class="form-group"><label>Nome strumento</label><input type="text" id="fName" placeholder="es. Vanguard FTSE All-World"></div>
+    <div class="form-group"><label>ISIN</label><input type="text" id="fIsin" placeholder="es. LU1829221024"></div>
     <div class="form-row">
       <div class="form-group"><label>Numero quote</label><input type="number" id="fShares" step="0.0001" placeholder="15"></div>
       <div class="form-group"><label>Prezzo medio carico (€)</label><input type="number" id="fAvgPrice" step="0.01" placeholder="108.50"></div>
@@ -539,6 +613,7 @@ tbody tr:last-child td { border-bottom: none; }
 <div class="page-layout">
 
   <!-- Sidebar -->
+  <div class="sidebar-backdrop" onclick="closeMobileNav()"></div>
   <aside class="sidebar">
     <div class="sidebar-section-label">Navigazione</div>
     <a href="/" class="sidebar-nav-link" data-tip="Overview"><span class="btn-icon">🏠</span><span class="btn-label"> Overview</span></a>
@@ -597,13 +672,13 @@ tbody tr:last-child td { border-bottom: none; }
           <table>
             <thead>
               <tr>
-                <th>Ticker</th><th>Nome</th><th>Tipo</th><th>Quote</th>
+                <th>Ticker</th><th>ISIN</th><th>Nome</th><th>Tipo</th><th>Quote</th>
                 <th>Prezzo carico</th><th>Prezzo attuale</th>
                 <th>Investito</th><th>Valore</th><th>P&amp;L</th><th>Peso</th><th></th>
               </tr>
             </thead>
             <tbody id="holdingsBody">
-              <tr><td colspan="11" class="loading"><div class="spinner"></div><br>Caricamento...</td></tr>
+              <tr><td colspan="12" class="loading"><div class="spinner"></div><br>Caricamento...</td></tr>
             </tbody>
           </table>
         </div>
@@ -663,9 +738,17 @@ tbody tr:last-child td { border-bottom: none; }
   })();
 
   function toggleSidebar() {
+    if (window.innerWidth <= 720) {
+      document.body.classList.toggle('mobile-nav-open');
+      return;
+    }
     document.body.classList.toggle('sidebar-collapsed');
     localStorage.setItem('sidebarCollapsed',
       document.body.classList.contains('sidebar-collapsed'));
+  }
+
+  function closeMobileNav() {
+    document.body.classList.remove('mobile-nav-open');
   }
 
 const API = '';
@@ -696,14 +779,14 @@ async function loadHoldings() {
     updateStatus(holdings);
   } catch (e) {
     document.getElementById('holdingsBody').innerHTML =
-      '<tr><td colspan="11" style="color:var(--red);padding:20px">Errore caricamento dati</td></tr>';
+      '<tr><td colspan="12" style="color:var(--red);padding:20px">Errore caricamento dati</td></tr>';
   }
 }
 
 function renderHoldings() {
   const tbody = document.getElementById('holdingsBody');
   if (!holdings.length) {
-    tbody.innerHTML = '<tr><td colspan="11" style="padding:20px;color:#718096">Nessuna posizione — clicca \"+ Nuova posizione\" per aggiungere</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="12" style="padding:20px;color:#718096">Nessuna posizione — clicca \"+ Nuova posizione\" per aggiungere</td></tr>';
     return;
   }
   const totalValue = holdings.reduce((s, h) => s + (h.market_value || h.invested), 0);
@@ -711,6 +794,7 @@ function renderHoldings() {
     const weight = totalValue > 0 ? ((h.market_value || h.invested) / totalValue * 100) : 0;
     return `<tr>
       <td><span class="ticker-badge">${h.ticker}</span></td>
+      <td style="color:#718096;font-size:0.78rem">${h.isin || '—'}</td>
       <td style="font-family:'Segoe UI',sans-serif;max-width:180px;overflow:hidden;text-overflow:ellipsis;color:#e2e8f0">${h.name}</td>
       <td><span class="asset-badge ${h.asset_type}">${h.asset_type}</span></td>
       <td>${h.shares}</td>
@@ -863,6 +947,7 @@ function openModal(holding = null) {
     document.getElementById('editingId').value   = holding.id;
     document.getElementById('fTicker').value     = holding.ticker;
     document.getElementById('fName').value       = holding.name;
+    document.getElementById('fIsin').value       = holding.isin || '';
     document.getElementById('fType').value       = holding.asset_type;
     document.getElementById('fShares').value     = holding.shares;
     document.getElementById('fAvgPrice').value   = holding.avg_price;
@@ -874,6 +959,7 @@ function openModal(holding = null) {
     document.getElementById('editingId').value   = '';
     document.getElementById('fTicker').value     = '';
     document.getElementById('fName').value       = '';
+    document.getElementById('fIsin').value       = '';
     document.getElementById('fType').value       = 'ETF';
     document.getElementById('fShares').value     = '';
     document.getElementById('fAvgPrice').value   = '';
@@ -891,6 +977,7 @@ async function saveHolding() {
   const payload = {
     ticker:     document.getElementById('fTicker').value.trim().toUpperCase(),
     name:       document.getElementById('fName').value.trim(),
+    isin:       document.getElementById('fIsin').value.trim().toUpperCase(),
     asset_type: document.getElementById('fType').value,
     shares:     parseFloat(document.getElementById('fShares').value),
     avg_price:  parseFloat(document.getElementById('fAvgPrice').value),
@@ -944,5 +1031,12 @@ if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').c
 
 loadAll();
 </script>
+<!-- Bottom nav (mobile) -->
+<nav class="bottom-nav">
+  <a href="/" class="bottom-nav-link"><span class="bn-icon">🏠</span>Overview</a>
+  <a href="/transactions.html" class="bottom-nav-link"><span class="bn-icon">📋</span>Transazioni</a>
+  <a href="/categories.html" class="bottom-nav-link"><span class="bn-icon">🍩</span>Categorie</a>
+  <a href="/investments.html" class="bottom-nav-link active"><span class="bn-icon">📈</span>Investimenti</a>
+</nav>
 </body>
 </html>

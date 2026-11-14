@@ -4,7 +4,7 @@ A personal finance dashboard to track income, expenses, account balances, and in
 
 Originally migrated from an Excel-based tracker, the app now runs on a SQLite database with a FastAPI backend, a Chart.js frontend served by nginx, and is fully orchestrated with Docker Compose.
 
-Accessible remotely via Tailscale and installable as a PWA on Android.
+Accessible remotely via Tailscale, installable as a PWA, and available as a native Android app (Trusted Web Activity wrapper, see [Android app](#android-app)).
 
 ---
 
@@ -28,6 +28,16 @@ Accessible remotely via Tailscale and installable as a PWA on Android.
 - **Sync from Drive** — pull the latest DB backup from Google Drive (replica nodes)
 - **Backup to Drive** — manually trigger a DB backup to Google Drive (primary node only)
 - **PWA support** — installable on Android via Chrome, fullscreen, HTTPS via Tailscale
+- **Mobile layout** — below 720px the sidebar becomes a drawer, a bottom navigation bar appears, and charts stack in a single column
+
+### Transactions (`transactions.html`)
+
+- Full transaction list with search, month, category, subcategory, account, and type filters, plus sorting and pagination
+- On phones each row is shown as a compact card (description and amount, then date, account, subcategory, and actions)
+
+### Categories (`categories.html`)
+
+- Spending by category (donut and distribution bars) and by subcategory
 
 ### Investments (`investments.html`)
 
@@ -35,7 +45,7 @@ Accessible remotely via Tailscale and installable as a PWA on Android.
 - **Holdings table** — per-position breakdown with live prices, quantity, cost basis, and P&L
 - **Allocation chart** — portfolio split by asset type and ticker
 - **Price history chart** — configurable period (1m / 3m / 6m / 1y / 5y) per ticker via yfinance
-- **Investment history** — cumulative deposit history sourced from transactions
+- **Investment history** — monthly and cumulative ETF deposits, sourced from confirmed transactions with subcategory `ETF investment`
 - **Add / edit / delete holding** — full CRUD for portfolio positions
 - **Refresh prices** — on-demand price update from Yahoo Finance
 
@@ -66,11 +76,17 @@ BudgetDashboard/
 │   ├── migrate.py             # One-shot migration: Excel → SQLite
 │   ├── upgrade_db.py          # Schema upgrades without data loss
 │   ├── upgrade_db_status.py   # Adds `status` column to transactions
-│   └── requirements.txt
+│   ├── upgrade_db_categories.py   # Adds new subcategories (edit NEW_CATEGORIES, then run)
+│   ├── upgrade_db_investments.py  # Investments tables upgrade
+│   ├── requirements.txt
 │   └── Dockerfile
 ├── frontend/
-│   ├── index.html             # Budget dashboard (HTML + CSS + JS inline)
+│   ├── index.html             # Overview dashboard (HTML + CSS + JS inline)
+│   ├── transactions.html      # Transactions list
+│   ├── categories.html        # Category / subcategory breakdown
 │   ├── investments.html       # Investments dashboard
+│   ├── .well-known/
+│   │   └── assetlinks.json    # Digital Asset Links for the Android app
 │   ├── nginx.conf             # Reverse proxy config
 │   ├── manifest.json          # PWA manifest
 │   └── sw.js                  # Service worker
@@ -196,7 +212,7 @@ Cached market prices per ticker and date, populated by yfinance on demand.
 | PUT | `/api/investments/holdings/{id}` | Edit a holding |
 | DELETE | `/api/investments/holdings/{id}` | Delete a holding |
 | GET | `/api/investments/summary` | KPIs: invested, market value, P&L |
-| GET | `/api/investments/history` | Cumulative investment deposit history |
+| GET | `/api/investments/history` | Monthly + cumulative deposits (confirmed expenses with subcategory `ETF investment`) |
 | GET | `/api/investments/allocation` | Allocation breakdown by type and ticker |
 | GET | `/api/investments/price-history` | Price history for a ticker (`?ticker=&period=`) |
 | POST | `/api/investments/refresh-prices` | Refresh all prices from Yahoo Finance |
@@ -229,11 +245,21 @@ Set `NODE_ROLE=primary` in `docker-compose.yml` on the main node. Secondary node
 
 ---
 
+## Android app
+
+A separate repository, `BudgetDashboardAndroid`, holds a thin Android wrapper (Trusted Web Activity, package `com.fraferr.budgetdashboard`). It contains **no** frontend or backend code: it opens `https://raspberrypi.taile176fd.ts.net:8443/` full-screen in Chrome. Any change made here is visible in the app right away, with no rebuild of the app needed.
+
+For the app to open without a URL bar, `frontend/.well-known/assetlinks.json` must list the SHA-256 fingerprint of the key that signed the APK. It currently lists the debug key of the development PC. Add the release key's fingerprint to the same array if you sign a release build.
+
+---
+
 ## Notes
 
 - Planned transactions are displayed dimmed and in italic in the transaction table, and are excluded from all KPIs, charts, and balance calculations.
 - Transfers between accounts (e.g. Unicredit → Revolut) are recorded as two paired transactions with `category_type = Transfer` and are excluded from income/expense statistics.
 - The `data/` directory is intentionally excluded from version control. You need to bring your own `budget.db` or run `migrate.py` to get started.
+- Subcategories live in the `categories` table. To add one, add it to `NEW_CATEGORIES` in `backend/upgrade_db_categories.py` and run `docker compose exec -T backend python upgrade_db_categories.py /data/budget.db`.
+- nginx does not send `Cache-Control` headers, so after editing an HTML file a phone may keep showing the old version for a while. Clear Chrome's cache to force a refresh.
 - Market prices in the investments module are fetched via `yfinance`. If the library is not installed, the investments endpoints still work but return `null` for live prices.
 
 ---

@@ -10,6 +10,7 @@ Personal budget dashboard: FastAPI + SQLite backend, static HTML/JS (Chart.js) f
 - `backend/upgrade_db*.py` — idempotent, manual schema/data upgrades. Follow this pattern for DB changes.
 - `frontend/*.html` — self-contained pages (CSS + JS inline): `index.html` (overview), `transactions.html`, `categories.html`, `investments.html`. Each defines `const API = ''` and calls `/api/...`, which nginx proxies to `backend:8000`.
 - `frontend/sw.js` — service worker: HTML network-first, other static assets cache-first. Bump `CACHE_NAME` if you change cached static assets (icons, manifest).
+- `frontend/.well-known/assetlinks.json` — Digital Asset Links for the Android TWA app (package `com.fraferr.budgetdashboard`, separate repo `BudgetDashboardAndroid`). Lists the SHA-256 of the signing key(s); if it doesn't match, the app shows a URL bar. Currently only the debug key of the dev PC. Not yet tracked in git.
 - `data/budget.db` — the live SQLite DB (git-ignored, personal data). `data/backups/` holds backups.
 
 ## Key domain rules
@@ -20,6 +21,7 @@ Personal budget dashboard: FastAPI + SQLite backend, static HTML/JS (Chart.js) f
 - `status` is `confirmed` or `planned`. Planned rows are excluded from all KPIs, charts and balances (`COALESCE(status,'confirmed') = 'confirmed'`). Keep that filter in new aggregate queries.
 - Transfers are two paired rows with `category_type = 'Transfer'`, using subcategories `Transfer to X` / `Transfer from Y`. They're excluded from income/expense stats. Adding a new account requires adding those subcategories plus an `account_balances` row.
 - Account balance = `account_balances` snapshot + sum of confirmed transactions after `as_of_date`.
+- **Investment history** (`GET /api/investments/history`, "Storico versamenti mensili" table/chart) counts only confirmed expense rows with `subcategory = 'ETF investment'` (category "Savings or investments"). Other investment subcategories (`Investment account`, `Retirement account`, …) are intentionally excluded. Changed 2026-11-14; previously it matched `%invest%` on category or subcategory.
 - The known typo `Vairable` (Income → Extras) exists in the DB. Leave it unless asked to fix it.
 
 ## Commands
@@ -36,8 +38,19 @@ curl -s localhost:3000/api/subcategories           # check via nginx
 - Ports: frontend 3000, backend 8000.
 - No test suite. Verify with `curl` against the API and by opening the dashboard.
 
+## Mobile layout (≤ 720px)
+
+The Android app and phone browsers use the `@media (max-width: 720px)` rules in each page: sidebar becomes an off-canvas drawer, `.bottom-nav` appears. Rules learned the hard way:
+
+- Single-column grids must use `grid-template-columns: minmax(0, 1fr)` plus `> * { min-width: 0 }`. Plain `1fr` won't shrink below the canvas/content width and cards overflow off-screen (fixed in `.two-col` on categories, `.chart-grid` on index).
+- `transactions.html`: on mobile the table is rendered as stacked cards via CSS grid on `tr` (description + amount / date · account · subcategory + actions; Category and Type columns hidden). Column positions are referenced with `td:nth-child(n)`, so keep the `<td>` order in `render()` in sync. `.filters-bar` uses `top: 0` on mobile (its desktop `top: 60px` pushed it over the first row).
+- To debug on the phone: USB debugging + `adb forward tcp:9222 localabstract:chrome_devtools_remote`, then inspect via `chrome://inspect` or the DevTools protocol.
+- nginx sends no `Cache-Control`, so Chrome may serve stale HTML after an edit. Clear Chrome's cache on the phone (or reload ignoring cache) when a change doesn't show up.
+- If the page renders at ~980px wide with the desktop sidebar on a phone, Chrome's "Desktop site" setting is on (user agent becomes `X11; Linux`). It's a Chrome setting, not a bug in the page.
+
 ## Cautions
 
 - Back up before touching the DB: `cp data/budget.db data/backups/budget_pre_<change>_$(date +%Y%m%d_%H%M%S).db`.
 - This node is `NODE_ROLE=primary`. `POST /api/sync-from-drive` **overwrites** the local DB with Drive's `budget_latest.db`. Don't call it on the primary after local DB changes that haven't been backed up to Drive.
+- Python `open().read()/write()` converts CRLF to LF. Some files (e.g. `investments.py`, `investments.html`) were committed with CRLF, so scripted edits produce whole-file diffs. Use `git diff --ignore-cr-at-eol` to review.
 - `backup.sh` (git-ignored, cron) and `rclone_config/` (git-ignored, mounted ro) handle Google Drive backups. Never commit secrets or `data/`.

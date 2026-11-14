@@ -10,6 +10,7 @@ import sys
 NEW_CATEGORIES = [
     # (category, subcategory, category_type)
     ("Shopping", "Sports Equipment", "Expense"),
+    ("Savings or investments", "ETF investment", "Expense"),
 ]
 
 

@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.fraferr.budgetdashboard",
+    "sha256_cert_fingerprints": ["91:CD:25:A3:0E:8B:1D:63:60:1F:7F:84:4E:7D:40:A7:77:AF:77:6F:2F:01:6A:C1:C2:B1:86:5D:26:35:E9:67"]
+  }
+}]

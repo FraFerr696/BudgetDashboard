@@ -55,6 +55,7 @@ class HoldingCreate(BaseModel):
     currency: str = "EUR"
     opened_at: str  # YYYY-MM-DD
     notes: str = ""
+    isin: str = ""
 
 class HoldingUpdate(BaseModel):
     ticker: Optional[str] = None
@@ -65,6 +66,7 @@ class HoldingUpdate(BaseModel):
     currency: Optional[str] = None
     opened_at: Optional[str] = None
     notes: Optional[str] = None
+    isin: Optional[str] = None
 
 
 # ── Utilità prezzi ──────────────────────────────────────────────────
@@ -139,6 +141,7 @@ def list_holdings():
             "currency": r["currency"],
             "opened_at": r["opened_at"],
             "notes": r["notes"],
+            "isin": r["isin"] if "isin" in r.keys() else "",
             "current_price": current_price,
             "price_source": price_source,
             "invested": round(invested, 2),
@@ -157,9 +160,9 @@ def list_holdings():
 def create_holding(h: HoldingCreate):
     conn = get_db()
     cur = conn.execute(
-        """INSERT INTO holdings (ticker, name, asset_type, shares, avg_price, currency, opened_at, notes)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (h.ticker, h.name, h.asset_type, h.shares, h.avg_price, h.currency, h.opened_at, h.notes)
+        """INSERT INTO holdings (ticker, name, asset_type, shares, avg_price, currency, opened_at, notes, isin)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (h.ticker, h.name, h.asset_type, h.shares, h.avg_price, h.currency, h.opened_at, h.notes, h.isin)
     )
     conn.commit()
     new_id = cur.lastrowid
@@ -178,7 +181,7 @@ def update_holding(holding_id: int, h: HoldingUpdate):
         raise HTTPException(404, "Holding non trovata")
 
     updates = {}
-    for field in ["ticker", "name", "asset_type", "shares", "avg_price", "currency", "opened_at", "notes"]:
+    for field in ["ticker", "name", "asset_type", "shares", "avg_price", "currency", "opened_at", "notes", "isin"]:
         val = getattr(h, field)
         if val is not None:
             updates[field] = val
@@ -255,7 +258,7 @@ def investment_summary():
 @router.get("/history")
 def investment_history():
     """Estrae i versamenti verso investimenti dalla tabella transactions.
-    Cerca transazioni con category = 'Investments' o subcategory contenente 'invest'.
+    Considera solo le transazioni confermate con subcategory = 'ETF investment'.
     """
     conn = get_db()
     rows = conn.execute("""
@@ -263,9 +266,9 @@ def investment_history():
                SUM(ABS(amount)) as total,
                COUNT(*) as count
         FROM transactions
-        WHERE (LOWER(category) LIKE '%invest%'
-               OR LOWER(subcategory) LIKE '%invest%')
+        WHERE subcategory = 'ETF investment'
           AND amount < 0
+          AND COALESCE(status, 'confirmed') = 'confirmed'
         GROUP BY month
         ORDER BY month
     """).fetchall()

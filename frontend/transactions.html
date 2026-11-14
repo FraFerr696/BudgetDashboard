@@ -375,7 +375,109 @@
     .toast { position: fixed; bottom: 24px; right: 24px; background: #2d3748; color: #e2e8f0; padding: 14px 20px; border-radius: 10px; font-size: 0.9rem; border-left: 4px solid #68d391; z-index: 300; transform: translateY(100px); opacity: 0; transition: all 0.3s ease; }
     .toast.show { transform: translateY(0); opacity: 1; }
     .toast.error { border-left-color: #fc8181; }
-  </style>
+/* ── Bottom nav (mobile) ─────────────────────────────────────── */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 150;
+  background: rgba(15, 12, 28, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  justify-content: space-around;
+  align-items: center;
+}
+.bottom-nav-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  padding: 6px 2px;
+  color: #718096;
+  text-decoration: none;
+  font-size: 0.65rem;
+  font-weight: 500;
+  border-radius: 10px;
+  transition: color 0.2s, background 0.2s;
+}
+.bottom-nav-link .bn-icon { font-size: 1.3rem; line-height: 1; }
+.bottom-nav-link.active { color: #a78bfa; background: rgba(167,139,250,0.12); }
+
+/* ── Sidebar as off-canvas drawer + compact typography (mobile) ── */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 290;
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    padding-top: 92px;
+    width: 250px !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.25s ease;
+    z-index: 300;
+    box-shadow: 10px 0 30px rgba(0,0,0,0.6);
+  }
+  body.mobile-nav-open .sidebar { transform: translateX(0) !important; }
+  body.mobile-nav-open .sidebar-backdrop { display: block; }
+  body.mobile-nav-open .sidebar .btn-label,
+  body.mobile-nav-open .sidebar .sidebar-section-label,
+  body.mobile-nav-open .sidebar .sidebar-filter-group { opacity: 1 !important; width: auto !important; height: auto !important; padding: inherit; }
+
+  .navbar { padding: 0 14px; }
+  .nav-brand { font-size: 1.15rem; gap: 6px; }
+  .nav-brand svg { width: 20px; height: 20px; }
+}
+
+@media (max-width: 720px) {
+  .bottom-nav { display: flex; }
+  .main-content { padding-bottom: 76px; }
+}
+  
+@media (max-width: 720px) {
+  .filters-bar { padding: 10px 14px; gap: 8px; }
+  .filters-bar > * { flex-shrink: 0; }
+  #txf-search { width: 170px !important; min-width: 0 !important; }
+  .filters-bar .filter-select { width: auto !important; min-width: 0 !important; max-width: 160px; }
+  .results-count { margin-left: 0; }
+  .table-area { padding: 8px 12px 0; }
+  .tx-table thead { display: none; }
+  .tx-table, .tx-table tbody { display: block; width: 100%; }
+  .tx-table tbody tr {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "desc desc desc amt" "date acc sub act";
+    column-gap: 8px; row-gap: 4px; align-items: center;
+    padding: 10px 2px;
+  }
+  .tx-table tbody tr:has(td[colspan]) { display: block; }
+  .tx-table tbody td { padding: 0; font-size: 0.75rem; color: #718096; }
+  .tx-table tbody td:nth-child(1) { grid-area: date; }
+  .tx-table tbody td:nth-child(2) { grid-area: acc; }
+  .tx-table tbody td:nth-child(3) { grid-area: desc; font-size: 0.92rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tx-table tbody td:nth-child(4), .tx-table tbody td:nth-child(6) { display: none; }
+  .tx-table tbody td:nth-child(5) { grid-area: sub; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tx-table tbody td:nth-child(7) { grid-area: amt; font-size: 0.95rem; white-space: nowrap; }
+  .tx-table tbody td:nth-child(8) { grid-area: act; }
+  .tx-table tbody td:nth-child(8) button { padding: 2px 4px; }
+}
+
+
+@media (max-width: 720px) {
+  .filters-bar { top: 0; }
+}
+</style>
 </head>
 <body>
 
@@ -460,6 +562,7 @@
 <div class="page-layout">
 
   <!-- Sidebar -->
+  <div class="sidebar-backdrop" onclick="closeMobileNav()"></div>
   <aside class="sidebar">
     <div class="sidebar-section-label">Navigazione</div>
     <a href="/" class="sidebar-nav-link" data-tip="Overview"><span class="btn-icon">🏠</span><span class="btn-label"> Overview</span></a>
@@ -564,9 +667,17 @@
   })();
 
   function toggleSidebar() {
+    if (window.innerWidth <= 720) {
+      document.body.classList.toggle('mobile-nav-open');
+      return;
+    }
     document.body.classList.toggle('sidebar-collapsed');
     localStorage.setItem('sidebarCollapsed',
       document.body.classList.contains('sidebar-collapsed'));
+  }
+
+  function closeMobileNav() {
+    document.body.classList.remove('mobile-nav-open');
   }
 
   const API = '';
@@ -913,5 +1024,12 @@
 
   init();
 </script>
+<!-- Bottom nav (mobile) -->
+<nav class="bottom-nav">
+  <a href="/" class="bottom-nav-link"><span class="bn-icon">🏠</span>Overview</a>
+  <a href="/transactions.html" class="bottom-nav-link active"><span class="bn-icon">📋</span>Transazioni</a>
+  <a href="/categories.html" class="bottom-nav-link"><span class="bn-icon">🍩</span>Categorie</a>
+  <a href="/investments.html" class="bottom-nav-link"><span class="bn-icon">📈</span>Investimenti</a>
+</nav>
 </body>
 </html>

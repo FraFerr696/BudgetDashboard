@@ -534,7 +534,87 @@
     .autocomplete-item .ac-sub { font-size: 0.9rem; color: #e2e8f0; font-weight: 500; }
     .autocomplete-item .ac-cat { font-size: 0.75rem; color: #718096; background: rgba(255,255,255,0.06); padding: 2px 7px; border-radius: 4px; white-space: nowrap; }
     .autocomplete-no-results { padding: 12px 14px; color: #718096; font-size: 0.88rem; text-align: center; }
-  </style>
+/* ── Bottom nav (mobile) ─────────────────────────────────────── */
+.bottom-nav {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 150;
+  background: rgba(15, 12, 28, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  justify-content: space-around;
+  align-items: center;
+}
+.bottom-nav-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  padding: 6px 2px;
+  color: #718096;
+  text-decoration: none;
+  font-size: 0.65rem;
+  font-weight: 500;
+  border-radius: 10px;
+  transition: color 0.2s, background 0.2s;
+}
+.bottom-nav-link .bn-icon { font-size: 1.3rem; line-height: 1; }
+.bottom-nav-link.active { color: #a78bfa; background: rgba(167,139,250,0.12); }
+
+/* ── Sidebar as off-canvas drawer + compact typography (mobile) ── */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 290;
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    display: flex;
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    padding-top: 92px;
+    width: 250px !important;
+    transform: translateX(-100%) !important;
+    transition: transform 0.25s ease;
+    z-index: 300;
+    box-shadow: 10px 0 30px rgba(0,0,0,0.6);
+  }
+  body.mobile-nav-open .sidebar { transform: translateX(0) !important; }
+  body.mobile-nav-open .sidebar-backdrop { display: block; }
+  body.mobile-nav-open .sidebar .btn-label,
+  body.mobile-nav-open .sidebar .sidebar-section-label,
+  body.mobile-nav-open .sidebar .sidebar-filter-group { opacity: 1 !important; width: auto !important; height: auto !important; padding: inherit; }
+
+  .navbar { padding: 0 14px; }
+  .nav-brand { font-size: 1.15rem; gap: 6px; }
+  .nav-brand svg { width: 20px; height: 20px; }
+  .nav-right { gap: 4px; }
+  #date-range { display: none; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .kpi { padding: 12px 14px; }
+  .kpi .value { font-size: 1.2rem; }
+  .kpi .label { font-size: 0.68rem; }
+}
+
+@media (max-width: 720px) {
+  .bottom-nav { display: flex; }
+  .main-content { padding-bottom: 76px; }
+}
+  
+@media (max-width: 720px) {
+  .chart-grid { grid-template-columns: minmax(0, 1fr); }
+  .chart-grid > * { min-width: 0; }
+}
+</style>
 </head>
 <body>
 
@@ -650,6 +730,7 @@
 <div class="page-layout">
 
   <!-- ── Sidebar ──────────────────────────────────────── -->
+  <div class="sidebar-backdrop" onclick="closeMobileNav()"></div>
   <aside class="sidebar">
     <div class="sidebar-section-label">Navigazione</div>
     <a href="/" class="sidebar-nav-link active" data-tip="Overview"><span class="btn-icon">🏠</span><span class="btn-label"> Overview</span></a>
@@ -798,9 +879,17 @@
   })();
 
   function toggleSidebar() {
+    if (window.innerWidth <= 720) {
+      document.body.classList.toggle('mobile-nav-open');
+      return;
+    }
     document.body.classList.toggle('sidebar-collapsed');
     localStorage.setItem('sidebarCollapsed',
       document.body.classList.contains('sidebar-collapsed'));
+  }
+
+  function closeMobileNav() {
+    document.body.classList.remove('mobile-nav-open');
   }
 
   const API = '';
@@ -1321,5 +1410,12 @@
   // ── PWA ────────────────────────────────────────
   if ('serviceWorker' in navigator) { navigator.serviceWorker.register('/sw.js').catch(() => {}); }
 </script>
+<!-- Bottom nav (mobile) -->
+<nav class="bottom-nav">
+  <a href="/" class="bottom-nav-link active"><span class="bn-icon">🏠</span>Overview</a>
+  <a href="/transactions.html" class="bottom-nav-link"><span class="bn-icon">📋</span>Transazioni</a>
+  <a href="/categories.html" class="bottom-nav-link"><span class="bn-icon">🍩</span>Categorie</a>
+  <a href="/investments.html" class="bottom-nav-link"><span class="bn-icon">📈</span>Investimenti</a>
+</nav>
 </body>
 </html>
