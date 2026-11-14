@@ -28,6 +28,7 @@ const CHART_CDN = /<script\s+src="https:\/\/(?:cdnjs\.cloudflare\.com\/ajax\/lib
 const LOCAL_SCRIPTS = [
   '<script src="/js/local-db.js"></script>',
   '<script src="/js/local-api.js"></script>',
+  '<script src="/js/local-prices.js"></script>',
   '<script src="/js/local-boot.js"></script>',
 ].join('\n  ');
 

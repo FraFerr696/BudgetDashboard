@@ -6,7 +6,7 @@
   "scripts": {
     "build:www": "node scripts/build-www.mjs",
     "sync": "node scripts/build-www.mjs && cap sync android",
-    "test:api": "node ../tools/local-api-test/run.mjs",
+    "test:api": "node ../tools/local-api-test/run.mjs && node ../tools/local-api-test/prices.mjs",
     "serve": "node scripts/build-www.mjs && node scripts/serve.mjs"
   },
   "dependencies": {

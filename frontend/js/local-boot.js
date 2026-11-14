@@ -24,6 +24,12 @@
   // ── 1. API locale, subito (prima degli script delle pagine) ─────────
   LocalApi.install();
 
+  // Prezzi ETF da Yahoo Finance con richieste native (nel browser il CORS
+  // le blocca: lì restano i prezzi salvati, come senza yfinance).
+  if (NATIVE && Plugins.CapacitorHttp && window.LocalPrices) {
+    LocalApi.setPriceProvider(LocalPrices.capacitor(Plugins.CapacitorHttp));
+  }
+
   function loadScript(src) {
     return new Promise((resolve, reject) => {
       const s = document.createElement('script');
