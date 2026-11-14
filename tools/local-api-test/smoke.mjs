@@ -141,6 +141,65 @@ try {
   await sleep(300);
   check(await evaluate(`document.querySelector('.lb-stats') && document.querySelector('.lb-stats').innerText.includes(String(${after}))`), 'pannello Dati mostra il numero di transazioni');
   writeFileSync(path.join(OUT, 'smoke_data_panel.png'), Buffer.from((await send('Page.captureScreenshot')).data, 'base64'));
+
+  // 7) backup verso il Pi: backend FastAPI vero in modalità mirror (se PYTHON è impostato)
+  if (process.env.PYTHON) {
+    const piDir = mkdtempSync(path.join(tmpdir(), 'budget-pi-'));
+    const piDb = path.join(piDir, 'budget.db');
+    writeFileSync(piDb, Buffer.from(DB_B64, 'base64'));
+    const PI_PORT = 8765, TOKEN = 'smoke-token';
+    const pi = spawn(process.env.PYTHON, ['-m', 'uvicorn', 'main:app', '--port', String(PI_PORT), '--log-level', 'warning'], {
+      cwd: path.join(ROOT, 'backend/app'),
+      env: { ...process.env, DB_PATH: piDb, NODE_ROLE: 'mirror', BACKUP_TOKEN: TOKEN, PYTHONPATH: path.join(ROOT, 'backend') },
+      stdio: 'ignore',
+    });
+    try {
+      const piUrl = `http://127.0.0.1:${PI_PORT}`;
+      for (let i = 0; i < 50; i++) { try { await fetch(piUrl + '/health'); break; } catch { await sleep(200); } }
+      const piCount = async () => (await (await fetch(piUrl + '/api/transactions')).json()).length;
+
+      // token sbagliato -> errore leggibile, niente scritto
+      const bad = await evaluate(`(async () => {
+        Object.assign(LocalBoot.backup.settings, { piUrl: ${JSON.stringify(piUrl)}, token: 'sbagliato' });
+        try { await LocalBoot.backup.run(); return 'ok?'; } catch (e) { return e.message; }
+      })()`);
+      check(/token/i.test(bad) && (await piCount()) === before, 'backup con token sbagliato rifiutato', bad);
+
+      // node-role: con backup configurato le pagine mostrano "Backup"
+      await evaluate(`(async () => { Object.assign(LocalBoot.backup.settings, { token: ${JSON.stringify(TOKEN)} }); await LocalBoot.backup.save(); })()`);
+      await go(base + '/', 3000);
+      const backupBtn = await evaluate(`getComputedStyle(document.getElementById('btn-backup')).display !== 'none'`);
+      check(backupBtn, 'con backup configurato compare il pulsante "Backup"');
+
+      // modifica -> backup automatico (accorciato) -> il Pi ha i dati del telefono
+      await evaluate(`fetch('/api/transactions', { method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ date: '2026-11-14', account: 'Unicredit', amount: -2.5, subcategory: ${JSON.stringify(sub)}, notes: 'smoke backup' }) }).then(r => r.status)`);
+      const dirty = await evaluate(`LocalBoot.backup.settings.dirty`);
+      const res = await evaluate(`LocalBoot.backup.run().then(r => r.message, e => 'ERR ' + e.message)`);
+      const n = await piCount();
+      check(dirty && !res.startsWith('ERR') && n === after + 1, 'backup: il Pi riceve il DB del telefono', `${res} | Pi: ${n} transazioni, attese ${after + 1}`);
+      check(await evaluate(`LocalBoot.backup.settings.dirty === false && !!LocalBoot.backup.settings.lastOkAt`), 'dopo il backup nessuna modifica in sospeso');
+
+      // il Pi in mirror rifiuta le scritture dalla sua dashboard web
+      const w = await fetch(piUrl + '/api/transactions/1', { method: 'DELETE' });
+      check(w.status === 403, 'Pi mirror: scrittura dalla web rifiutata', String(w.status));
+
+      // Pi spento -> errore "non raggiungibile", resta in sospeso
+      pi.kill(); await sleep(800);
+      await evaluate(`fetch('/api/transactions', { method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ date: '2026-11-14', account: 'Unicredit', amount: -1, subcategory: ${JSON.stringify(sub)} }) }).then(r => r.status)`);
+      const off = await evaluate(`LocalBoot.backup.run().then(() => 'ok?', e => e.message)`);
+      check(/raggiungibile|timeout/i.test(off) && await evaluate(`LocalBoot.backup.settings.dirty`), 'Pi spento: errore chiaro, modifiche restano da inviare', off);
+      await evaluate(`LocalBoot.showDataPanel(), true`); await sleep(300);
+      writeFileSync(path.join(OUT, 'smoke_backup_panel.png'), Buffer.from((await send('Page.captureScreenshot')).data, 'base64'));
+    } finally {
+      pi.kill();
+      await sleep(300);
+      try { rmSync(piDir, { recursive: true, force: true }); } catch {}
+    }
+  } else {
+    console.log('(backup verso il Pi non testato: imposta PYTHON=<python con fastapi+uvicorn>)');
+  }
 } catch (e) {
   check(false, 'ERRORE', e.stack || String(e));
 } finally {

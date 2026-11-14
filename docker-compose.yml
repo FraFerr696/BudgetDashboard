@@ -8,7 +8,10 @@ services:
       - ./rclone_config:/root/.config/rclone:ro
     environment:
       - DB_PATH=/data/budget.db
-      - NODE_ROLE=primary
+      # primary | standby | mirror (mirror = dati dall'app sul telefono, web in sola lettura)
+      - NODE_ROLE=${NODE_ROLE:-primary}
+      # token per POST /api/backup-upload dall'app (in .env sul Pi, mai nel repo)
+      - BACKUP_TOKEN=${BACKUP_TOKEN:-}
     restart: unless-stopped
 
   frontend:

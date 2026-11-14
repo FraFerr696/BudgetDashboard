@@ -313,6 +313,16 @@
 
     onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
 
+    /** File accessori accanto al DB (es. settings.json). */
+    async readAux(name) {
+      if (!storage) throw new Error('LocalDB non aperto');
+      return storage.read(name);
+    },
+    async writeAux(name, bytes) {
+      if (!storage) throw new Error('LocalDB non aperto');
+      await storage.write(name, bytes);
+    },
+
     // esposti per i test
     _ensureSchema: ensureSchema,
     _b64: { bytesToB64, b64ToBytes },

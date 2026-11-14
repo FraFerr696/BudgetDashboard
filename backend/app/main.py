@@ -1,8 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
-from datetime import date
+from datetime import date, datetime
+import hmac
 import sqlite3
 import os
 import io
@@ -20,6 +22,30 @@ app.add_middleware(
 app.include_router(investments_router)
 
 DB_PATH = os.getenv("DB_PATH", "/data/budget.db")
+
+
+# ── Modalità mirror (sola lettura) ──────────────────
+# Con NODE_ROLE=mirror la fonte dei dati è l'app sul telefono, che manda il
+# DB con /api/backup-upload. La dashboard web resta consultabile, ma ogni
+# modifica viene rifiutata: verrebbe sovrascritta dal prossimo backup.
+MIRROR_ALLOWED_WRITES = {"/api/backup-upload", "/api/backup-to-drive"}
+
+
+def node_role_value():
+    return os.getenv("NODE_ROLE", "primary")
+
+
+@app.middleware("http")
+async def mirror_read_only(request: Request, call_next):
+    if (node_role_value() == "mirror"
+            and request.method in ("POST", "PUT", "PATCH", "DELETE")
+            and request.url.path.startswith("/api/")
+            and request.url.path not in MIRROR_ALLOWED_WRITES):
+        return JSONResponse(
+            status_code=403,
+            content={"detail": "Dashboard in sola lettura: i dati si modificano dall'app sul telefono"},
+        )
+    return await call_next(request)
 
 
 def get_db():
@@ -528,12 +554,14 @@ async def node_role():
 
 @app.post("/api/backup-to-drive")
 async def backup_to_drive():
-    import subprocess
-    from datetime import datetime
-
     node_role = os.getenv("NODE_ROLE", "primary")
-    if node_role != "primary":
+    if node_role not in ("primary", "mirror"):
         raise HTTPException(status_code=403, detail="Backup consentito solo sul nodo primary")
+    return await run_in_threadpool(_drive_backup)
+
+
+def _drive_backup():
+    import subprocess
 
     db_path = os.getenv("DB_PATH", "/data/budget.db")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -575,3 +603,91 @@ async def backup_to_drive():
 
     except subprocess.TimeoutExpired:
         raise HTTPException(status_code=504, detail="Timeout durante il backup")
+
+# ── Backup dall'app sul telefono ───────────────────
+# L'app (mobile/) manda l'intero file SQLite. Solo in modalità mirror: il DB
+# ricevuto sostituisce data/budget.db (backup.sh continua a mandarlo su Drive).
+#   Header X-Backup-Token = env BACKUP_TOKEN  (se non impostato: endpoint disattivo)
+#   ?drive=1  dopo la sostituzione esegue anche il backup su Google Drive
+
+MAX_UPLOAD_BYTES = 50 * 1024 * 1024
+KEEP_PHONE_BACKUPS = 30
+REQUIRED_TABLES = ("transactions", "categories", "account_balances")
+
+
+def _check_sqlite_file(path):
+    """Ritorna il numero di transazioni o solleva HTTPException se il file non è un DB valido."""
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        try:
+            ok = conn.execute("PRAGMA integrity_check").fetchone()[0]
+            if str(ok).lower() != "ok":
+                raise HTTPException(status_code=400, detail=f"DB corrotto: {ok}")
+            tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+            missing = [t for t in REQUIRED_TABLES if t not in tables]
+            if missing:
+                raise HTTPException(status_code=400, detail=f"Tabelle mancanti: {', '.join(missing)}")
+            return conn.execute("SELECT COUNT(*) FROM transactions").fetchone()[0]
+        finally:
+            conn.close()
+    except sqlite3.DatabaseError as e:
+        raise HTTPException(status_code=400, detail=f"File non valido: {e}")
+
+
+def _store_phone_backup(data: bytes):
+    db_path = os.getenv("DB_PATH", "/data/budget.db")
+    data_dir = os.path.dirname(db_path) or "."
+    phone_dir = os.path.join(data_dir, "backups", "phone")
+    os.makedirs(phone_dir, exist_ok=True)
+
+    tmp_path = os.path.join(data_dir, "budget_upload_tmp.db")
+    with open(tmp_path, "wb") as f:
+        f.write(data)
+        f.flush()
+        os.fsync(f.fileno())
+    try:
+        count = _check_sqlite_file(tmp_path)
+    except Exception:
+        os.remove(tmp_path)
+        raise
+
+    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    archived = os.path.join(phone_dir, f"budget_phone_{stamp}.db")
+    with open(archived, "wb") as f:
+        f.write(data)
+
+    # sostituzione atomica del DB servito dalla dashboard
+    os.replace(tmp_path, db_path)
+
+    old = sorted(f for f in os.listdir(phone_dir) if f.startswith("budget_phone_") and f.endswith(".db"))
+    for name in old[:-KEEP_PHONE_BACKUPS]:
+        os.remove(os.path.join(phone_dir, name))
+
+    return {"transactions": count, "size": len(data), "saved_as": os.path.basename(archived)}
+
+
+@app.post("/api/backup-upload")
+async def backup_upload(request: Request, drive: bool = False):
+    expected = os.getenv("BACKUP_TOKEN", "")
+    if not expected:
+        raise HTTPException(status_code=503, detail="Backup dal telefono non configurato (BACKUP_TOKEN)")
+    if not hmac.compare_digest(request.headers.get("x-backup-token", ""), expected):
+        raise HTTPException(status_code=401, detail="Token di backup non valido")
+    if node_role_value() != "mirror":
+        raise HTTPException(status_code=409, detail="Il Pi non è in modalità mirror (NODE_ROLE=mirror): upload rifiutato per non sovrascrivere i suoi dati")
+
+    data = await request.body()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="File troppo grande")
+    if not data.startswith(b"SQLite format 3\x00"):
+        raise HTTPException(status_code=400, detail="Il file non è un database SQLite")
+
+    result = await run_in_threadpool(_store_phone_backup, data)
+    result["status"] = "ok"
+    if drive:
+        # il DB è già salvato sul Pi: un errore di Drive non annulla l'upload
+        try:
+            result["drive"] = await run_in_threadpool(_drive_backup)
+        except HTTPException as e:
+            result["drive_error"] = e.detail
+    return result

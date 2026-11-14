@@ -384,11 +384,27 @@
     });
   });
 
-  // Nodo locale: né 'primary' né 'standby', quindi le pagine nascondono
-  // i pulsanti Drive. Il backup verso il Pi arriva in uno step successivo.
-  route('GET', '/api/node-role', () => ({ role: 'local' }));
+  // Backup verso il Pi (in mirror). Il gestore lo registra local-boot.js:
+  //   { ready: Promise, configured(): bool, run({ drive }): Promise<{ message }> }
+  // Con il backup configurato node-role vale 'primary', quindi le pagine
+  // mostrano il loro pulsante "Backup", che finisce qui sotto.
+  let backupHandler = null;
+  async function backupReady() {
+    if (!backupHandler) return false;
+    if (backupHandler.ready) await backupHandler.ready.catch(() => {});
+    return !!backupHandler.configured();
+  }
+
+  route('GET', '/api/node-role', async () => ({ role: (await backupReady()) ? 'primary' : 'local' }));
   route('POST', '/api/sync-from-drive', () => { throw new HttpError(501, 'Non disponibile in modalità locale'); });
-  route('POST', '/api/backup-to-drive', () => { throw new HttpError(501, 'Non disponibile in modalità locale'); });
+  route('POST', '/api/backup-to-drive', async () => {
+    if (!(await backupReady())) throw new HttpError(400, 'Backup non configurato: apri 💾 Dati → Impostazioni backup');
+    try {
+      return await backupHandler.run({ drive: true });
+    } catch (e) {
+      throw new HttpError(502, e.message || String(e));
+    }
+  });
 
   // ════════════════════════════════════════════════════════════════════
   //  investments.py
@@ -668,6 +684,7 @@
     request,
     exportSheets,
     setPriceProvider(p) { priceProvider = p; },
+    setBackupHandler(h) { backupHandler = h; },
     get installed() { return !!realFetch; },
     /** fetch originale (per parlare davvero col Pi quando serve). */
     get realFetch() { return realFetch || global.fetch.bind(global); },
