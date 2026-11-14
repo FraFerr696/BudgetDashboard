@@ -53,3 +53,7 @@ desktop.ini
 .idea/
 *.swp
 *.swo
+# ========================
+# Local API test output (contains personal data)
+# ========================
+tools/local-api-test/out/

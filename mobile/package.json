@@ -1,0 +1,24 @@
+{
+  "name": "budget-dashboard-mobile",
+  "version": "2.0.0",
+  "private": true,
+  "description": "App Android local-first della Budget Dashboard (Capacitor + SQLite sul telefono)",
+  "scripts": {
+    "build:www": "node scripts/build-www.mjs",
+    "sync": "node scripts/build-www.mjs && cap sync android",
+    "test:api": "node ../tools/local-api-test/run.mjs",
+    "serve": "node scripts/build-www.mjs && node scripts/serve.mjs"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/filesystem": "8.1.4",
+    "@capacitor/share": "8.0.3",
+    "chart.js": "4.4.4",
+    "sql.js": "1.15.2",
+    "xlsx": "0.18.5"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

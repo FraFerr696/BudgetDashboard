@@ -1,0 +1,3 @@
+node_modules/
+# generata da scripts/build-www.mjs a partire da ../frontend
+www/

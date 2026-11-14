@@ -13,6 +13,17 @@ Personal budget dashboard: FastAPI + SQLite backend, static HTML/JS (Chart.js) f
 - `frontend/.well-known/assetlinks.json` — Digital Asset Links for the Android TWA app (package `com.fraferr.budgetdashboard`, separate repo `BudgetDashboardAndroid`). Lists the SHA-256 of the signing key(s); if it doesn't match, the app shows a URL bar. Currently only the debug key of the dev PC. Not yet tracked in git.
 - `data/budget.db` — the live SQLite DB (git-ignored, personal data). `data/backups/` holds backups.
 
+## Local-first Android app (`mobile/`, branch `feature/local-first`)
+
+A Capacitor app (package `com.fraferr.budgetdashboard`, replaces the TWA in `BudgetDashboardAndroid`) that runs the same pages with the DB **on the phone**. The Pi is only a backup target.
+
+- `frontend/js/local-api.js` — the endpoints of `main.py` + `investments.py` ported to JS: same SQL, same response shapes and error messages. It intercepts `fetch('/api/...')`, so the pages don't change. **If you change an endpoint in Python, change it here too**, then regenerate the reference and run the tests (see below).
+- `frontend/js/local-db.js` — sql.js (SQLite/WASM). The whole DB lives in memory and is saved atomically to a file after every write (Capacitor Filesystem; IndexedDB in the browser). `ensureSchema()` is the app's equivalent of the `upgrade_db*.py` scripts: add new columns there too.
+- `frontend/js/local-boot.js` — app-only: import screen, the "💾 Dati" button, Excel/DB export via the Share sheet, no service worker.
+- `mobile/scripts/build-www.mjs` builds `mobile/www/` from `frontend/`: it swaps Chart.js from the CDN for `vendor/` and injects the `local-*.js` scripts. The Pi never loads these scripts.
+- Tests: `python tools/local-api-test/make_reference.py data/<db>` (needs fastapi + httpx; runs the real backend on a copy of the DB), then `cd mobile && npm run test:api` (JS vs Python comparison) and `node ../tools/local-api-test/smoke.mjs` (pages in headless Edge, screenshots). `tools/local-api-test/out/` contains personal data and is git-ignored.
+- Build/install: `cd mobile && npm run sync`, then in `mobile/android` with `JAVA_HOME` = JDK 21 (`C:\Program Files\Microsoft\jdk-21.*`; Android Studio's JDK 25 does not work with Gradle 8.14): `gradlew.bat assembleDebug`, then `adb install -r app/build/outputs/apk/debug/app-debug.apk`. Debug WebView: `adb forward tcp:9444 localabstract:webview_devtools_remote_<pid>`.
+
 ## Key domain rules
 
 - **Categories live in the DB, not in code.** The `categories` table (`category`, `subcategory` UNIQUE, `category_type` ∈ Income/Expense/Transfer) feeds the transaction modal via `/api/subcategories`. To add or rename a subcategory, add it to `NEW_CATEGORIES` in `backend/upgrade_db_categories.py` and run it (see Commands). No frontend change is needed.

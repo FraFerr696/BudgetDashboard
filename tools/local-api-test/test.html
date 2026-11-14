@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Test LocalApi</title>
+<style>
+  :root { --bg:#0f1115; --fg:#e6e6e6; --muted:#8a8f98; --ok:#3fb950; --ko:#f85149; --card:#171a21; --line:#262a33; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui, sans-serif; }
+  h1 { font-size:18px; margin:0 0 8px; }
+  #summary { font-size:16px; margin:8px 0 16px; }
+  .ok { color:var(--ok); } .ko { color:var(--ko); } .muted { color:var(--muted); }
+  table { border-collapse:collapse; width:100%; }
+  td { border-top:1px solid var(--line); padding:4px 6px; vertical-align:top; }
+  td:first-child { width:24px; }
+  pre { white-space:pre-wrap; word-break:break-all; background:var(--card); padding:8px; margin:4px 0; font-size:12px; }
+  label { display:inline-flex; gap:6px; align-items:center; margin-bottom:8px; }
+</style>
+</head>
+<body>
+<h1>Test LocalApi: confronto con il backend Python</h1>
+<div class="muted">Riferimento: tools/local-api-test/out/reference.js (generato da make_reference.py)</div>
+<div id="summary">In esecuzione…</div>
+<label><input type="checkbox" id="only-ko" checked> mostra solo i casi falliti</label>
+<table id="results"></table>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/sql-wasm.js"></script>
+<script src="../../frontend/js/local-db.js"></script>
+<script src="../../frontend/js/local-api.js"></script>
+<script src="out/reference.js"></script>
+<script>
+(async function () {
+  const $sum = document.getElementById('summary');
+  const $tbl = document.getElementById('results');
+  const rows = [];
+
+  function diff(a, b, path = '$') {
+    if (a === b) return null;
+    if (typeof a === 'number' && typeof b === 'number') {
+      return Object.is(a + 0, b + 0) ? null : `${path}: atteso ${a}, ottenuto ${b}`;
+    }
+    if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') {
+      return `${path}: atteso ${JSON.stringify(a)}, ottenuto ${JSON.stringify(b)}`;
+    }
+    if (Array.isArray(a) !== Array.isArray(b)) return `${path}: tipo diverso`;
+    if (Array.isArray(a)) {
+      if (a.length !== b.length) return `${path}: lunghezza attesa ${a.length}, ottenuta ${b.length}`;
+      for (let i = 0; i < a.length; i++) { const d = diff(a[i], b[i], `${path}[${i}]`); if (d) return d; }
+      return null;
+    }
+    const ka = Object.keys(a), kb = Object.keys(b);
+    if (ka.join('|') !== kb.join('|')) return `${path}: chiavi attese [${ka}] ottenute [${kb}]`;
+    for (const k of ka) { const d = diff(a[k], b[k], `${path}.${k}`); if (d) return d; }
+    return null;
+  }
+
+  try {
+    if (!window.REFERENCE) throw new Error('out/reference.js mancante: esegui make_reference.py');
+    const REF = window.REFERENCE;
+
+    // 1) arrotondamento
+    let roundKo = 0;
+    for (const [x, n, expected] of REF.round_samples || []) {
+      const got = LocalApi._pyRound(x, n);
+      if (!Object.is(got + 0, expected + 0)) {
+        roundKo++;
+        if (roundKo <= 20) rows.push({ ok: false, title: `pyRound(${x}, ${n})`, detail: `atteso ${expected}, ottenuto ${got}` });
+      }
+    }
+    rows.push({ ok: roundKo === 0, title: `pyRound: ${(REF.round_samples || []).length} campioni`, detail: roundKo ? `${roundKo} diversi` : '' });
+
+    // 2) API: stesso DB di partenza, stessa sequenza di richieste
+    await LocalDB.open({ storage: 'memory', locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
+    await LocalDB.importBytes(LocalDB._b64.b64ToBytes(REF.db_b64));
+
+    for (const c of REF.cases) {
+      const res = await LocalApi.request(c.method, c.path, c.body ?? undefined);
+      let problem = null;
+      if (res.status !== c.status) problem = `status atteso ${c.status}, ottenuto ${res.status} — ${JSON.stringify(res.data)}`;
+      else if (c.compare === 'full') problem = diff(c.response, res.data);
+      else if (c.compare === 'nodate') {
+        const strip = o => { const { date, ...rest } = o || {}; return rest; };
+        problem = diff(strip(c.response), strip(res.data));
+      }
+      rows.push({ ok: !problem, title: `${c.method} ${c.path}`, body: c.body, detail: problem || '' });
+    }
+
+    // 3) persistenza: il DB esportato deve riaprirsi con gli stessi dati
+    const bytes = LocalDB.exportBytes();
+    const SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.2/${f}` });
+    const re = new SQL.Database(bytes);
+    const n1 = re.exec('SELECT COUNT(*), ROUND(SUM(amount),2) FROM transactions')[0].values[0].join('/');
+    const n2 = LocalDB.all('SELECT COUNT(*) AS c, ROUND(SUM(amount),2) AS s FROM transactions').map(r => `${r.c}/${r.s}`)[0];
+    rows.push({ ok: n1 === n2, title: 'export → riapertura del DB', detail: `${n1} vs ${n2}` });
+
+    // 4) intercettazione fetch
+    LocalApi.install();
+    const f = await fetch('/api/summary').then(r => r.json());
+    const viaReq = (await LocalApi.request('GET', '/api/summary')).data;
+    rows.push({ ok: !diff(viaReq, f), title: "fetch('/api/summary') intercettata", detail: diff(viaReq, f) || '' });
+    const nf = await fetch('/api/transactions/99999999', { method: 'DELETE' });
+    rows.push({ ok: nf.status === 404 && (await nf.json()).detail === 'Transazione non trovata', title: 'fetch DELETE inesistente → 404 + detail', detail: '' });
+  } catch (e) {
+    rows.push({ ok: false, title: 'ERRORE', detail: e.stack || String(e) });
+  }
+
+  const ko = rows.filter(r => !r.ok).length;
+  $sum.innerHTML = ko
+    ? `<span class="ko">✗ ${ko} falliti</span> su ${rows.length}`
+    : `<span class="ok">✓ Tutti i ${rows.length} controlli passati</span>`;
+  document.title = ko ? `✗ ${ko} falliti` : '✓ LocalApi OK';
+
+  function render() {
+    const onlyKo = document.getElementById('only-ko').checked;
+    $tbl.innerHTML = '';
+    for (const r of rows) {
+      if (onlyKo && r.ok) continue;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td class="${r.ok ? 'ok' : 'ko'}">${r.ok ? '✓' : '✗'}</td><td></td>`;
+      const td = tr.children[1];
+      td.textContent = r.title;
+      if (r.body) { const p = document.createElement('pre'); p.textContent = JSON.stringify(r.body); td.appendChild(p); }
+      if (r.detail) { const p = document.createElement('pre'); p.textContent = r.detail; td.appendChild(p); }
+      $tbl.appendChild(tr);
+    }
+  }
+  document.getElementById('only-ko').addEventListener('change', render);
+  render();
+})();
+</script>
+</body>
+</html>

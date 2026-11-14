@@ -1,0 +1,15 @@
+{
+  "appId": "com.fraferr.budgetdashboard",
+  "appName": "Budget",
+  "webDir": "www",
+  "backgroundColor": "#0b0d14",
+  "android": {
+    "allowMixedContent": false
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "native",
+      "style": "DARK"
+    }
+  }
+}

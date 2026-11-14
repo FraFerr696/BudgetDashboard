@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Splash: sfondo scuro della dashboard + icona dell'app al centro -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/splashBackground" />
+    <item android:gravity="center" android:drawable="@mipmap/ic_launcher" />
+</layer-list>
