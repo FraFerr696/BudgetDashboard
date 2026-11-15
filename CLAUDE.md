@@ -13,7 +13,7 @@ Personal budget dashboard: FastAPI + SQLite backend, static HTML/JS (Chart.js) f
 - `frontend/.well-known/assetlinks.json` — Digital Asset Links for the Android TWA app (package `com.fraferr.budgetdashboard`, separate repo `BudgetDashboardAndroid`). Lists the SHA-256 of the signing key(s); if it doesn't match, the app shows a URL bar. Currently only the debug key of the dev PC. Not yet tracked in git.
 - `data/budget.db` — the live SQLite DB (git-ignored, personal data). `data/backups/` holds backups.
 
-## Local-first Android app (`mobile/`, branch `feature/local-first`)
+## Local-first Android app (`mobile/`)
 
 A Capacitor app (package `com.fraferr.budgetdashboard`, replaces the TWA in `BudgetDashboardAndroid`) that runs the same pages with the DB **on the phone**. The Pi is only a backup target.
 
