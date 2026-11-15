@@ -247,9 +247,27 @@ Set `NODE_ROLE=primary` in `docker-compose.yml` on the main node. Secondary node
 
 ## Android app
 
-A separate repository, `BudgetDashboardAndroid`, holds a thin Android wrapper (Trusted Web Activity, package `com.fraferr.budgetdashboard`). It contains **no** frontend or backend code: it opens `https://raspberrypi.taile176fd.ts.net:8443/` full-screen in Chrome. Any change made here is visible in the app right away, with no rebuild of the app needed.
+The Android app lives in `mobile/` (Capacitor, package `com.fraferr.budgetdashboard`). It runs the same pages with the SQLite database **on the phone**, so it needs neither the Pi nor Tailscale. The Pi is only a backup target:
 
-For the app to open without a URL bar, `frontend/.well-known/assetlinks.json` must list the SHA-256 fingerprint of the key that signed the APK. It currently lists the debug key of the development PC. Add the release key's fingerprint to the same array if you sign a release build.
+- The app sends the whole DB to `POST /api/backup-upload` on the Pi. The Pi must run with `NODE_ROLE=mirror` and `BACKUP_TOKEN=<token>` in `.env`, and the same token goes in the app under **💾 Dati → Impostazioni backup**.
+- In mirror mode the Pi's web dashboard is read-only. `backup.sh` keeps uploading the DB to Google Drive.
+- ETF prices are fetched by the phone directly from Yahoo Finance.
+
+Build and install (JDK 21, Android SDK):
+
+```bash
+cd mobile && npm install && npm run sync
+cd android && ./gradlew assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+### Signing key ⚠️
+
+The release APK is signed with the debug keystore of the development PC, `C:\Users\<user>\.android\debug.keystore`. Another path can be set with the `BUDGET_KEYSTORE` environment variable. A copy is stored on **Google Drive**.
+
+Android only installs an update if it is signed with the same key. **If this file is lost, the app can no longer be updated.** It would have to be uninstalled, and uninstalling deletes the DB on the phone. On a new PC, put the copy from Drive back at `C:\Users\<user>\.android\debug.keystore` before building. If you ever need to reinstall, export the DB first from **💾 Dati → 📤 Esporta database (.db)** and import it again afterwards.
+
+The old Trusted Web Activity wrapper (`BudgetDashboardAndroid` repository, which opened the Pi's URL in Chrome) has been replaced by this app.
 
 ---
 
@@ -260,7 +278,7 @@ For the app to open without a URL bar, `frontend/.well-known/assetlinks.json` mu
 - The `data/` directory is intentionally excluded from version control. You need to bring your own `budget.db` or run `migrate.py` to get started.
 - Subcategories live in the `categories` table. To add one, add it to `NEW_CATEGORIES` in `backend/upgrade_db_categories.py` and run `docker compose exec -T backend python upgrade_db_categories.py /data/budget.db`.
 - nginx does not send `Cache-Control` headers, so after editing an HTML file a phone may keep showing the old version for a while. Clear Chrome's cache to force a refresh.
-- Market prices in the investments module are fetched via `yfinance`. If the library is not installed, the investments endpoints still work but return `null` for live prices.
+- Market prices in the investments module are fetched via `yfinance` on the Pi and from Yahoo Finance directly in the Android app. If no prices can be fetched, the investments endpoints still work and fall back to the last saved prices.
 
 ---
 
