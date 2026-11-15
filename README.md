@@ -85,8 +85,6 @@ BudgetDashboard/
 │   ├── transactions.html      # Transactions list
 │   ├── categories.html        # Category / subcategory breakdown
 │   ├── investments.html       # Investments dashboard
-│   ├── .well-known/
-│   │   └── assetlinks.json    # Digital Asset Links for the Android app
 │   ├── nginx.conf             # Reverse proxy config
 │   ├── manifest.json          # PWA manifest
 │   └── sw.js                  # Service worker

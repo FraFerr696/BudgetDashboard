@@ -14,7 +14,7 @@ const FRONTEND = path.resolve(MOBILE, '..', 'frontend');
 const WWW = path.join(MOBILE, 'www');
 const NM = path.join(MOBILE, 'node_modules');
 
-const SKIP = new Set(['.well-known', 'nginx.conf', 'sw.js']);
+const SKIP = new Set(['nginx.conf', 'sw.js']);
 
 const VENDOR = {
   'sql-wasm.js': 'sql.js/dist/sql-wasm.js',

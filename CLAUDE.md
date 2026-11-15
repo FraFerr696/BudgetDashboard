@@ -10,12 +10,11 @@ Personal budget dashboard: FastAPI + SQLite backend, static HTML/JS (Chart.js) f
 - `backend/upgrade_db*.py` — idempotent, manual schema/data upgrades. Follow this pattern for DB changes.
 - `frontend/*.html` — self-contained pages (CSS + JS inline): `index.html` (overview), `transactions.html`, `categories.html`, `investments.html`. Each defines `const API = ''` and calls `/api/...`, which nginx proxies to `backend:8000`.
 - `frontend/sw.js` — service worker: HTML network-first, other static assets cache-first. Bump `CACHE_NAME` if you change cached static assets (icons, manifest).
-- `frontend/.well-known/assetlinks.json` — Digital Asset Links for the Android TWA app (package `com.fraferr.budgetdashboard`, separate repo `BudgetDashboardAndroid`). Lists the SHA-256 of the signing key(s); if it doesn't match, the app shows a URL bar. Currently only the debug key of the dev PC. Not yet tracked in git.
 - `data/budget.db` — the live SQLite DB (git-ignored, personal data). `data/backups/` holds backups.
 
 ## Local-first Android app (`mobile/`)
 
-A Capacitor app (package `com.fraferr.budgetdashboard`, replaces the TWA in `BudgetDashboardAndroid`) that runs the same pages with the DB **on the phone**. The Pi is only a backup target.
+A Capacitor app (package `com.fraferr.budgetdashboard`, replaces the old TWA, whose repo `BudgetDashboardAndroid` is archived) that runs the same pages with the DB **on the phone**. The Pi is only a backup target.
 
 - `frontend/js/local-api.js` — the endpoints of `main.py` + `investments.py` ported to JS: same SQL, same response shapes and error messages. It intercepts `fetch('/api/...')`, so the pages don't change. **If you change an endpoint in Python, change it here too**, then regenerate the reference and run the tests (see below).
 - `frontend/js/local-db.js` — sql.js (SQLite/WASM). The whole DB lives in memory and is saved atomically to a file after every write (Capacitor Filesystem; IndexedDB in the browser). `ensureSchema()` is the app's equivalent of the `upgrade_db*.py` scripts: add new columns there too.
