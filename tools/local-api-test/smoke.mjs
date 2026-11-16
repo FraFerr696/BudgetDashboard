@@ -117,6 +117,29 @@ try {
     writeFileSync(path.join(OUT, `smoke_${name}.png`), Buffer.from((await send('Page.captureScreenshot')).data, 'base64'));
   }
 
+  // 3b) modale "Modifica posizione": il pulsante Salva si raggiunge anche su
+  //     schermo basso (es. tastiera aperta: 412x480)
+  await go(base + '/investments.html', 3000);
+  for (const h of [915, 480]) {
+    await send('Emulation.setDeviceMetricsOverride', { width: 412, height: h, deviceScaleFactor: 2, mobile: true });
+    await sleep(200);
+    const r = await evaluate(`(async () => {
+      const edit = document.querySelector('button[title="Modifica"]');
+      if (!edit) return { err: 'nessuna posizione da modificare' };
+      edit.click(); await new Promise(r => setTimeout(r, 200));
+      const modal = document.querySelector('#holdingModal .modal');
+      modal.scrollTop = modal.scrollHeight; await new Promise(r => setTimeout(r, 100));
+      const save = [...modal.querySelectorAll('button')].find(b => b.textContent.trim() === 'Salva');
+      const m = modal.getBoundingClientRect(), s = save.getBoundingClientRect();
+      const out = { modalTop: Math.round(m.top), modalBottom: Math.round(m.bottom), saveBottom: Math.round(s.bottom), vh: innerHeight };
+      closeModal();
+      return out;
+    })()`);
+    check(!r.err && r.modalTop >= 0 && r.modalBottom <= r.vh && r.saveBottom <= r.vh,
+      `investments: "Salva" visibile nella modale (altezza ${h})`, JSON.stringify(r));
+  }
+  await send('Emulation.setDeviceMetricsOverride', { width: 412, height: 915, deviceScaleFactor: 2, mobile: true });
+
   // 4) scrittura + persistenza (IndexedDB) dopo ricarica
   await go(base + '/transactions.html', 2500);
   const before = await evaluate(`fetch('/api/transactions').then(r => r.json()).then(d => d.length)`);
