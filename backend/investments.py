@@ -71,21 +71,36 @@ class HoldingUpdate(BaseModel):
 
 # ── Utilità prezzi ──────────────────────────────────────────────────
 
-def fetch_current_prices(tickers: list[str]) -> dict[str, float | None]:
-    """Recupera ultimo prezzo per ogni ticker via yfinance."""
-    prices = {}
+def fetch_current_quotes(tickers: list[str]) -> dict[str, dict]:
+    """Ultimo prezzo per ogni ticker via yfinance: {ticker: {"price", "date"}}.
+
+    Prende l'ultima chiusura giornaliera (non rettificata) degli ultimi 5 giorni
+    e la sua data, come l'app sul telefono (frontend/js/local-prices.js).
+    Non usa fast_info.last_price: quando manca la riga di oggi ripiega su
+    regularMarketPrice, che per alcuni ETF (es. CEU2.MI) è fermo da mesi.
+    La data permette alla pagina di segnalare un prezzo fermo.
+    """
+    quotes = {t: {"price": None, "date": None} for t in tickers}
     if not YFINANCE_AVAILABLE:
-        return {t: None for t in tickers}
+        return quotes
 
     for ticker in tickers:
         try:
-            t = yf.Ticker(ticker)
-            info = t.fast_info
-            prices[ticker] = round(info.last_price, 4)
+            hist = yf.Ticker(ticker).history(period="5d", auto_adjust=False)
+            closes = hist["Close"].dropna()
+            if not closes.empty:
+                quotes[ticker] = {
+                    "price": round(float(closes.iloc[-1]), 4),
+                    "date": closes.index[-1].strftime("%Y-%m-%d"),
+                }
         except Exception as e:
             logger.warning(f"Errore prezzo {ticker}: {e}")
-            prices[ticker] = None
-    return prices
+    return quotes
+
+
+def fetch_current_prices(tickers: list[str]) -> dict[str, float | None]:
+    """Ultimo prezzo per ogni ticker (vedi fetch_current_quotes)."""
+    return {t: q["price"] for t, q in fetch_current_quotes(tickers).items()}
 
 
 def get_last_saved_prices(conn, tickers: list[str]) -> dict[str, dict]:
@@ -113,17 +128,19 @@ def list_holdings():
     tickers = [r["ticker"] for r in rows]
 
     # Prova prezzi live, fallback a ultimo salvato
-    live_prices = fetch_current_prices(tickers)
+    live_quotes = fetch_current_quotes(tickers)
     saved_prices = get_last_saved_prices(conn, tickers)
 
     holdings = []
     for r in rows:
         ticker = r["ticker"]
-        current_price = live_prices.get(ticker)
+        current_price = live_quotes[ticker]["price"]
+        price_date = live_quotes[ticker]["date"]
         price_source = "live"
 
         if current_price is None and saved_prices.get(ticker, {}).get("price"):
             current_price = saved_prices[ticker]["price"]
+            price_date = saved_prices[ticker]["date"]
             price_source = f"saved ({saved_prices[ticker]['date']})"
 
         invested = r["shares"] * r["avg_price"]
@@ -144,6 +161,7 @@ def list_holdings():
             "isin": r["isin"] if "isin" in r.keys() else "",
             "current_price": current_price,
             "price_source": price_source,
+            "price_date": price_date,
             "invested": round(invested, 2),
             "market_value": round(market_value, 2) if market_value else None,
             "pl": round(pl, 2) if pl is not None else None,

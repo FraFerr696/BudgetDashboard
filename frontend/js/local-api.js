@@ -89,23 +89,32 @@
   }
 
   // ── Prezzi di mercato (sostituto di yfinance) ──────────────────────
-  // provider.current(tickers) -> Promise<{ticker: prezzo|null}>
+  // provider.current(tickers) -> Promise<{ticker: {price, date}|prezzo|null}>
   // provider.history(ticker, period) -> Promise<[{date, price}]>
   let priceProvider = null;
 
-  async function fetchCurrentPrices(tickers) {
+  // = fetch_current_quotes: {ticker: {price, date}}
+  async function fetchCurrentQuotes(tickers) {
     const out = {};
-    tickers.forEach(t => { out[t] = null; });
+    tickers.forEach(t => { out[t] = { price: null, date: null }; });
     if (!priceProvider || !priceProvider.current || !tickers.length) return out;
     try {
       const got = await priceProvider.current(tickers);
       for (const t of tickers) {
-        const p = got && got[t];
-        out[t] = Number.isFinite(p) ? pyRound(p, 4) : null;
+        const q = got && got[t];
+        const p = q !== null && typeof q === 'object' ? q.price : q;
+        if (Number.isFinite(p)) out[t] = { price: pyRound(p, 4), date: (q && q.date) || null };
       }
     } catch (e) {
       console.warn('[LocalApi] prezzi non disponibili:', e);
     }
+    return out;
+  }
+
+  async function fetchCurrentPrices(tickers) {
+    const quotes = await fetchCurrentQuotes(tickers);
+    const out = {};
+    for (const t of tickers) out[t] = quotes[t].price;
     return out;
   }
 
@@ -415,15 +424,17 @@
   route('GET', `${INV}/holdings`, async () => {
     const rows = DB().all('SELECT * FROM holdings ORDER BY opened_at');
     const tickers = rows.map(r => r.ticker);
-    const live = await fetchCurrentPrices(tickers);
+    const live = await fetchCurrentQuotes(tickers);
     const saved = getLastSavedPrices(tickers);
 
     return rows.map(r => {
       const ticker = r.ticker;
-      let currentPrice = live[ticker] ?? null;
+      let currentPrice = live[ticker].price;
+      let priceDate = live[ticker].date;
       let priceSource = 'live';
       if (currentPrice === null && saved[ticker] && truthy(saved[ticker].price)) {
         currentPrice = saved[ticker].price;
+        priceDate = saved[ticker].date;
         priceSource = `saved (${saved[ticker].date})`;
       }
       const invested = r.shares * r.avg_price;
@@ -443,6 +454,7 @@
         isin: 'isin' in r ? r.isin : '',
         current_price: currentPrice,
         price_source: priceSource,
+        price_date: priceDate,
         invested: pyRound(invested, 2),
         market_value: truthy(marketValue) ? pyRound(marketValue, 2) : null,
         pl: pl !== null ? pyRound(pl, 2) : null,

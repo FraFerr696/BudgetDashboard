@@ -442,6 +442,7 @@ tbody tr:last-child td { border-bottom: none; }
 .actions-cell { display: flex; gap: 4px; }
 
 .price-source { font-size: 0.7rem; color: #4a5568; padding: 2px 6px; background: rgba(255,255,255,0.05); border-radius: 4px; }
+.price-source.price-stale { color: #f6ad55; background: rgba(246,173,85,0.12); white-space: nowrap; }
 
 /* ── Buttons ─────────────────────────────────────────────────── */
 .btn { padding: 8px 14px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.83rem; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; gap: 6px; }
@@ -802,6 +803,7 @@ function renderHoldings() {
       <td>${fmt(h.avg_price)}</td>
       <td>${h.current_price != null ? fmt(h.current_price) : '<span class="neutral">N/D</span>'}
           ${h.price_source !== 'live' && h.current_price != null ? `<span class="price-source">${h.price_source}</span>` : ''}
+          ${isStale(h) ? `<span class="price-source price-stale" title="Nessuna quotazione più recente per ${h.ticker}: prova il ticker di un'altra Borsa (es. .DE)">⚠️ fermo al ${fmtDay(h.price_date)}</span>` : ''}
       </td>
       <td>${fmt(h.invested)}</td>
       <td>${fmt(h.market_value)}</td>
@@ -820,13 +822,35 @@ function renderHoldings() {
   }).join('');
 }
 
+// ── Prezzo fermo ─────────────────────────────────────────────────
+// Un prezzo live è "fermo" se la sua data (price_date, giorno dell'ultima
+// chiusura) è precedente all'ultimo giorno di Borsa concluso: oggi dopo le
+// 18 di un giorno feriale, altrimenti il giorno feriale precedente.
+// Succede quando Yahoo non aggiorna più un ticker (es. CEU2.MI): la cura è
+// usare il ticker di un'altra Borsa. Nei giorni festivi di Borsa può dare
+// un avviso in più: è solo informativo.
+function lastTradingDay(now = new Date()) {
+  const d = new Date(now);
+  const weekday = d.getDay() >= 1 && d.getDay() <= 5;
+  if (!(weekday && d.getHours() >= 18)) {
+    do { d.setDate(d.getDate() - 1); } while (d.getDay() === 0 || d.getDay() === 6);
+  }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function isStale(h) {
+  return h.price_source === 'live' && h.current_price != null && !!h.price_date && h.price_date < lastTradingDay();
+}
+function fmtDay(iso) { const [y, m, d] = iso.split('-'); return `${d}/${m}`; }
+
 function updateStatus(holdings) {
   const dot    = document.getElementById('statusDot');
   const text   = document.getElementById('statusText');
   const update = document.getElementById('lastUpdate');
   const allLive  = holdings.every(h => h.price_source === 'live');
   const anyPrice = holdings.some(h => h.current_price != null);
-  if (allLive && holdings.length > 0)     { dot.className = 'status-dot live';    text.textContent = 'Prezzi live'; }
+  const stale    = holdings.filter(isStale).map(h => h.ticker);
+  if (stale.length)                        { dot.className = 'status-dot saved';   text.textContent = `Prezzo fermo: ${stale.join(', ')}`; }
+  else if (allLive && holdings.length > 0) { dot.className = 'status-dot live';    text.textContent = 'Prezzi live'; }
   else if (anyPrice)                       { dot.className = 'status-dot saved';   text.textContent = 'Prezzi salvati (API non raggiungibile)'; }
   else if (holdings.length > 0)           { dot.className = 'status-dot offline'; text.textContent = 'Prezzi non disponibili'; }
   else                                     { dot.className = 'status-dot';         text.textContent = 'Nessuna posizione'; }

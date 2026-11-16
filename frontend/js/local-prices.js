@@ -5,8 +5,9 @@
  * (query1.finance.yahoo.com/v8/finance/chart/<ticker>), chiamata dal lato
  * nativo con CapacitorHttp perché dal WebView il CORS la bloccherebbe.
  *
- *   current(tickers)        -> {ticker: prezzo | null}   (= fast_info.last_price,
- *                              cioè l'ultima chiusura della serie giornaliera)
+ *   current(tickers)        -> {ticker: {price, date} | null}: ultima chiusura
+ *                              giornaliera non rettificata e la sua data
+ *                              (= fetch_current_quotes in investments.py)
  *   history(ticker, period) -> [{date: 'YYYY-MM-DD', price}] (= history(period).Close)
  *
  * yfinance history() usa auto_adjust=True, quindi Close è il prezzo
@@ -26,8 +27,8 @@
 
   // httpGet(url, headers) -> Promise<{status, data}> (data: oggetto o stringa JSON)
   function create({ httpGet, now = () => Date.now() }) {
-    const cache = new Map(); // ticker -> {at, price}
-    const inflight = new Map(); // ticker -> Promise<price|null>
+    const cache = new Map(); // ticker -> {at, quote}
+    const inflight = new Map(); // ticker -> Promise<{price, date}|null>
 
     async function chart(ticker, params) {
       const qs = Object.entries(params).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&');
@@ -42,23 +43,32 @@
       return result;
     }
 
+    // Data (YYYY-MM-DD) nel fuso della borsa, come l'indice di yfinance
+    const dayOf = (t, offset) => new Date((t + (offset || 0)) * 1000).toISOString().slice(0, 10);
+
     async function fetchCurrent(ticker) {
-      // Come yfinance fast_info.last_price: ultima chiusura (non rettificata)
-      // della serie; regularMarketPrice solo se la serie è vuota. Per alcuni
-      // ETF (es. CEU2.MI) regularMarketPrice è sbagliato.
+      // Ultima chiusura (non rettificata) della serie e la sua data;
+      // regularMarketPrice solo se la serie è vuota. Per alcuni ETF
+      // (es. CEU2.MI) regularMarketPrice è fermo da mesi.
       const r = await chart(ticker, { range: '5d', interval: '1d' });
+      const meta = r.meta || {};
+      const ts = r.timestamp || [];
       const closes = (r.indicators && r.indicators.quote && r.indicators.quote[0] && r.indicators.quote[0].close) || [];
-      let p = closes.filter(Number.isFinite).pop();
-      if (!Number.isFinite(p)) p = r.meta && r.meta.regularMarketPrice;
-      return Number.isFinite(p) ? p : null;
+      for (let i = Math.min(ts.length, closes.length) - 1; i >= 0; i--) {
+        if (Number.isFinite(closes[i])) return { price: closes[i], date: dayOf(ts[i], meta.gmtoffset) };
+      }
+      if (Number.isFinite(meta.regularMarketPrice)) {
+        return { price: meta.regularMarketPrice, date: meta.regularMarketTime ? dayOf(meta.regularMarketTime, meta.gmtoffset) : null };
+      }
+      return null;
     }
 
     function currentOne(ticker) {
       const c = cache.get(ticker);
-      if (c && now() - c.at < CURRENT_TTL) return Promise.resolve(c.price);
+      if (c && now() - c.at < CURRENT_TTL) return Promise.resolve(c.quote);
       if (inflight.has(ticker)) return inflight.get(ticker);
       const p = fetchCurrent(ticker)
-        .then(price => { cache.set(ticker, { at: now(), price }); return price; })
+        .then(quote => { cache.set(ticker, { at: now(), quote }); return quote; })
         .catch(e => { console.warn('[LocalPrices]', ticker, e && e.message || e); return null; })
         .finally(() => inflight.delete(ticker));
       inflight.set(ticker, p);
@@ -66,9 +76,9 @@
     }
 
     async function current(tickers) {
-      const prices = await Promise.all(tickers.map(currentOne));
+      const quotes = await Promise.all(tickers.map(currentOne));
       const out = {};
-      tickers.forEach((t, i) => { out[t] = prices[i]; });
+      tickers.forEach((t, i) => { out[t] = quotes[i]; });
       return out;
     }
 
@@ -79,12 +89,12 @@
       const adj = r.indicators && r.indicators.adjclose && r.indicators.adjclose[0] && r.indicators.adjclose[0].adjclose;
       const close = r.indicators && r.indicators.quote && r.indicators.quote[0] && r.indicators.quote[0].close;
       const series = adj || close || [];
-      const offset = (r.meta && r.meta.gmtoffset) || 0;
+      const offset = r.meta && r.meta.gmtoffset;
       const out = [];
       ts.forEach((t, i) => {
         const price = series[i];
         if (!Number.isFinite(price)) return; // yfinance scarta le righe NaN
-        const date = new Date((t + offset) * 1000).toISOString().slice(0, 10);
+        const date = dayOf(t, offset);
         if (out.length && out[out.length - 1].date === date) out[out.length - 1].price = price;
         else out.push({ date, price });
       });

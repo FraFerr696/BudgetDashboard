@@ -140,6 +140,23 @@ try {
   }
   await send('Emulation.setDeviceMetricsOverride', { width: 412, height: 915, deviceScaleFactor: 2, mobile: true });
 
+  // 3c) prezzo fermo: un ticker con l'ultima quotazione vecchia mostra l'avviso,
+  //     uno aggiornato no
+  const stale = await evaluate(`(async () => {
+    const tickers = (await (await fetch('/api/investments/holdings')).json()).map(h => h.ticker);
+    if (tickers.length < 2) return { err: 'servono 2 posizioni' };
+    LocalApi.setPriceProvider({ current: async ts => Object.fromEntries(ts.map(t =>
+      [t, t === tickers[0] ? { price: 100, date: '2025-09-26' } : { price: 100, date: new Date().toISOString().slice(0, 10) }])) });
+    await loadAll();
+    const badges = [...document.querySelectorAll('.price-stale')].map(b => b.textContent.trim());
+    const status = document.getElementById('statusText').textContent;
+    LocalApi.setPriceProvider(null);
+    return { badges, status, first: tickers[0] };
+  })()`);
+  check(!stale.err && stale.badges.length === 1 && stale.badges[0] === '⚠️ fermo al 26/09' && stale.status === 'Prezzo fermo: ' + stale.first,
+    'investments: avviso "prezzo fermo" solo sul ticker non aggiornato', JSON.stringify(stale));
+  writeFileSync(path.join(OUT, 'smoke_investments_stale.png'), Buffer.from((await send('Page.captureScreenshot')).data, 'base64'));
+
   // 4) scrittura + persistenza (IndexedDB) dopo ricarica
   await go(base + '/transactions.html', 2500);
   const before = await evaluate(`fetch('/api/transactions').then(r => r.json()).then(d => d.length)`);

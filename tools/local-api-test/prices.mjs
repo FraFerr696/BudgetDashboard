@@ -24,7 +24,7 @@ function chartBody({ price = 77.7, adj = true, empty = false } = {}) {
     chart: {
       error: null,
       result: [{
-        meta: { regularMarketPrice: price, currency: 'EUR', gmtoffset: 3600 },
+        meta: { regularMarketPrice: price, regularMarketTime: Date.UTC(2025, 8, 26, 15, 0, 0) / 1000, currency: 'EUR', gmtoffset: 3600 },
         timestamp: empty ? [] : [day(12), day(13), day(14)],
         indicators: {
           quote: [{ close: empty ? [] : [100, 101, null] }],
@@ -52,7 +52,8 @@ const p = LocalPrices.create({
 
 console.log('LocalPrices');
 let cur = await p.current(['UST.MI', 'CEU2.MI']);
-check('current: ultima chiusura non rettificata (non regularMarketPrice)', cur['UST.MI'] === 101 && cur['CEU2.MI'] === 101, cur);
+check('current: ultima chiusura non rettificata (non regularMarketPrice)', cur['UST.MI'].price === 101 && cur['CEU2.MI'].price === 101, cur);
+check('current: data dell\'ultima chiusura valida (fuso della borsa)', cur['UST.MI'].date === '2026-11-13', cur);
 check('current: una richiesta per ticker', calls.length === 2, calls);
 check('current: URL con range e ticker codificato', calls[0].includes('/chart/UST.MI?range=5d&interval=1d'), calls[0]);
 await p.current(['UST.MI']);
@@ -73,7 +74,7 @@ check('current: ticker inesistente -> null', cur['NOPE'] === null, cur);
 
 mode = 'empty'; p.clearCache();
 cur = await p.current(['UST.MI']);
-check('current: serie vuota -> regularMarketPrice', cur['UST.MI'] === 77.7, cur);
+check('current: serie vuota -> regularMarketPrice con la sua data', cur['UST.MI'].price === 77.7 && cur['UST.MI'].date === '2025-09-26', cur);
 
 mode = 'ok';
 let h = await p.history('UST.MI', '6mo');
@@ -111,6 +112,7 @@ LocalApi.setPriceProvider(p);
 let r = await LocalApi.request('GET', '/api/investments/holdings');
 const hold = r.data[0];
 check('holdings: prezzo live dal provider', hold.current_price === 101 && hold.price_source === 'live', hold);
+check('holdings: price_date = data della quotazione', hold.price_date === '2026-11-13', hold);
 r = await LocalApi.request('POST', '/api/investments/refresh-prices');
 check('refresh-prices: salva il prezzo', r.data.refreshed === 1 && r.data.total === 1, r.data);
 const saved = LocalDB.get(`SELECT market_price FROM portfolio_valuations WHERE ticker='UST.MI'`);
@@ -120,6 +122,7 @@ check('price-history: serie dal provider', r.data.period === '1mo' && r.data.dat
 mode = 'down'; p.clearCache();
 r = await LocalApi.request('GET', '/api/investments/holdings');
 check('offline: usa il prezzo salvato', r.data[0].current_price === 101 && r.data[0].price_source.startsWith('saved ('), r.data[0]);
+check('offline: price_date = data del prezzo salvato', r.data[0].price_date === r.data[0].price_source.slice(7, 17), r.data[0]);
 r = await LocalApi.request('GET', '/api/investments/price-history?ticker=UST.MI');
 check('offline: price-history con error', r.data.data.length === 0 && r.data.error === 'offline', r.data);
 
@@ -135,7 +138,7 @@ if (process.env.LIVE) {
     },
   });
   const c = await live.current(['UST.MI', 'CEU2.MI']);
-  check('live current', Object.values(c).every(Number.isFinite), c);
+  check('live current', Object.values(c).every(q => Number.isFinite(q.price) && /^\d{4}-\d\d-\d\d$/.test(q.date)), c);
   const hh = await live.history('UST.MI', '1mo');
   check('live history', hh.length > 10 && /^\d{4}-\d\d-\d\d$/.test(hh[0].date), hh.slice(-3));
   console.log('  ', JSON.stringify(c), JSON.stringify(hh.slice(-3)));
