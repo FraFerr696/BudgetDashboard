@@ -641,7 +641,7 @@
             <th style="width:150px" onclick="sortBy('subcategory')">Sottocategoria</th>
             <th style="width:100px">Tipo</th>
             <th style="width:110px;text-align:right" onclick="sortBy('amount')">Importo</th>
-            <th style="width:100px;text-align:center">Azioni</th>
+            <th style="width:130px;text-align:center">Azioni</th>
           </tr>
         </thead>
         <tbody id="tx-body">
@@ -682,6 +682,8 @@
 
   const API = '';
   const fmt = (n) => new Intl.NumberFormat('it-IT', { style: 'currency', currency: 'EUR' }).format(n);
+  // Today's date in local time (toISOString() is UTC: just after midnight it gives yesterday)
+  const todayLocal = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
 
   let allData = [];
   let filteredData = [];
@@ -829,6 +831,7 @@
           <td style="text-align:center;white-space:nowrap">
             <button class="status-toggle ${t.status === 'planned' ? 'is-planned' : 'is-confirmed'}" onclick="toggleStatus(${t.id}, this)" title="${t.status === 'planned' ? 'Conferma' : 'Segna come pianificata'}">${t.status === 'planned' ? '⏳' : '✅'}</button>
             <button class="edit-btn" onclick="openEditModal(${t.id}, '${t.Date}', '${t.Account}', ${t['Income/(Expense)']}, '${t.Subcategory}', '${(t.Notes || '').replace(/'/g, "\\'")}', '${t.status}')" title="Modifica">✏️</button>
+            <button class="edit-btn" onclick="openCopyModal(${t.id})" title="Duplica">📋</button>
             <button class="del-btn" onclick="deleteTransaction(${t.id}, this)" title="Elimina">🗑</button>
           </td>
         </tr>
@@ -871,7 +874,7 @@
     editingId = null;
     document.getElementById('modal-title').textContent = '➕ Nuova transazione';
     document.getElementById('btn-save').textContent = 'Salva';
-    document.getElementById('tx-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('tx-date').value = todayLocal();
     document.getElementById('tx-amount').value = '';
     document.getElementById('tx-notes').value = '';
     document.getElementById('tx-planned').checked = false;
@@ -898,6 +901,27 @@
     const preview = document.getElementById('category-preview');
     if (match) { preview.textContent = `→ ${match.category} · ${match.category_type}`; preview.className = 'category-preview ' + match.category_type.toLowerCase(); }
     document.getElementById('modal-overlay').classList.add('open');
+  }
+
+  // Duplicate: the add modal (or the transfer one, for transfers) prefilled
+  // with the original's data and today's date.
+  function openCopyModal(id) {
+    const t = allData.find(x => x.id === id);
+    if (!t) return;
+    if (t['Category Type'] === 'Transfer') {
+      openTransferModal();
+      const m = /^Transfer (to|from) (.+)$/.exec(t.Subcategory || '');
+      if (m) {
+        document.getElementById('tr-from').value = m[1] === 'to' ? t.Account : m[2];
+        document.getElementById('tr-to').value   = m[1] === 'to' ? m[2] : t.Account;
+      }
+      document.getElementById('tr-amount').value = Math.abs(t['Income/(Expense)']);
+      document.getElementById('tr-notes').value = t.Notes || '';
+      return;
+    }
+    openEditModal(null, todayLocal(), t.Account, t['Income/(Expense)'], t.Subcategory, t.Notes, t.status);
+    document.getElementById('modal-title').textContent = '📋 Duplica transazione';
+    document.getElementById('btn-save').textContent = 'Salva';
   }
 
   function closeModal() { editingId = null; document.getElementById('modal-overlay').classList.remove('open'); }
@@ -967,7 +991,7 @@
 
   // Transfer
   function openTransferModal() {
-    document.getElementById('tr-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('tr-date').value = todayLocal();
     document.getElementById('tr-from').value = 'Unicredit';
     document.getElementById('tr-to').value = 'Revolut';
     document.getElementById('tr-amount').value = '';
