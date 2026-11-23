@@ -329,6 +329,8 @@
       margin-bottom: 20px;
     }
 
+    .balance-grid { grid-template-columns: repeat(5, 1fr); }
+
     .kpi {
       background: rgba(255,255,255,0.04);
       backdrop-filter: blur(12px);
@@ -360,6 +362,7 @@
 
     #bal-Unicredit::before  { background: radial-gradient(ellipse at top left, rgba(99,179,237,0.15) 0%, transparent 65%); }
     #bal-Revolut::before    { background: radial-gradient(ellipse at top left, rgba(183,148,244,0.15) 0%, transparent 65%); }
+    #bal-TradeRepublic::before { background: radial-gradient(ellipse at top left, rgba(79,209,197,0.15) 0%, transparent 65%); }
     #bal-Contanti::before   { background: radial-gradient(ellipse at top left, rgba(104,211,145,0.15) 0%, transparent 65%); }
     #bal-Totale::before     { background: radial-gradient(ellipse at top left, rgba(246,173,85,0.15) 0%, transparent 65%); }
 
@@ -371,6 +374,7 @@
     .kpi:nth-child(4):hover { box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(167,139,250,0.12); }
     #bal-Unicredit:hover  { box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(99,179,237,0.12); }
     #bal-Revolut:hover    { box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(183,148,244,0.12); }
+    #bal-TradeRepublic:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(79,209,197,0.12); }
     #bal-Contanti:hover   { box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(104,211,145,0.12); }
     #bal-Totale:hover     { box-shadow: 0 8px 32px rgba(0,0,0,0.4), 0 0 20px rgba(246,173,85,0.12); }
 
@@ -600,6 +604,7 @@
   .nav-right { gap: 4px; }
   #date-range { display: none; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .balance-grid #bal-Totale { grid-column: 1 / -1; }
   .kpi { padding: 12px 14px; }
   .kpi .value { font-size: 1.2rem; }
   .kpi .label { font-size: 0.68rem; }
@@ -632,6 +637,7 @@
         <select id="tx-account">
           <option value="Unicredit">Unicredit</option>
           <option value="Revolut">Revolut</option>
+          <option value="Trade Republic">Trade Republic</option>
           <option value="Contanti">Contanti</option>
         </select>
       </div>
@@ -678,6 +684,7 @@
         <select id="tr-from">
           <option value="Unicredit">Unicredit</option>
           <option value="Revolut">Revolut</option>
+          <option value="Trade Republic">Trade Republic</option>
           <option value="Contanti">Contanti</option>
         </select>
       </div>
@@ -689,6 +696,7 @@
         <select id="tr-to">
           <option value="Revolut">Revolut</option>
           <option value="Unicredit">Unicredit</option>
+          <option value="Trade Republic">Trade Republic</option>
           <option value="Contanti">Contanti</option>
         </select>
       </div>
@@ -817,7 +825,7 @@
     </div>
 
     <!-- Account balances -->
-    <div class="kpi-grid" style="margin-bottom: 20px;">
+    <div class="kpi-grid balance-grid" style="margin-bottom: 20px;">
       <div class="kpi" id="bal-Unicredit">
         <div class="label">🏦 Unicredit <button class="eye-btn" onclick="toggleKpi('kpi-bal-Unicredit', this)">👁</button></div>
         <div class="value neutral" id="kpi-bal-Unicredit">—</div>
@@ -825,6 +833,10 @@
       <div class="kpi" id="bal-Revolut">
         <div class="label">💳 Revolut <button class="eye-btn" onclick="toggleKpi('kpi-bal-Revolut', this)">👁</button></div>
         <div class="value neutral" id="kpi-bal-Revolut">—</div>
+      </div>
+      <div class="kpi" id="bal-TradeRepublic">
+        <div class="label">📈 Trade Republic <button class="eye-btn" onclick="toggleKpi('kpi-bal-TradeRepublic', this)">👁</button></div>
+        <div class="value neutral" id="kpi-bal-TradeRepublic">—</div>
       </div>
       <div class="kpi" id="bal-Contanti">
         <div class="label">💵 Contanti <button class="eye-btn" onclick="toggleKpi('kpi-bal-Contanti', this)">👁</button></div>
@@ -922,7 +934,7 @@
   let allHidden = false;
   function toggleAllKpis() {
     allHidden = !allHidden;
-    const allIds = ['kpi-income','kpi-expenses','kpi-balance','kpi-bal-Unicredit','kpi-bal-Revolut','kpi-bal-Contanti','kpi-bal-Totale'];
+    const allIds = ['kpi-income','kpi-expenses','kpi-balance','kpi-bal-Unicredit','kpi-bal-Revolut','kpi-bal-TradeRepublic','kpi-bal-Contanti','kpi-bal-Totale'];
     allIds.forEach(id => {
       const el = document.getElementById(id);
       const btn = el?.closest('.kpi')?.querySelector('.eye-btn');
@@ -1111,7 +1123,11 @@
 
   async function loadAccountBalances() {
     const data = await fetch(`${API}/api/account-balances`).then(r => r.json());
-    data.forEach(d => setKpi(`kpi-bal-${d.account}`, fmt(d.balance)));
+    // id senza spazi: 'Trade Republic' -> kpi-bal-TradeRepublic; conti senza card ignorati
+    data.forEach(d => {
+      const id = `kpi-bal-${d.account.replace(/\s+/g, '')}`;
+      if (document.getElementById(id)) setKpi(id, fmt(d.balance));
+    });
   }
 
   async function refresh() {

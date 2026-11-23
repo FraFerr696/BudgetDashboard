@@ -155,6 +155,19 @@
       created_at TEXT DEFAULT (datetime('now')),
       UNIQUE(ticker, date)
     )`);
+
+    // Conto Trade Republic (2026-11-23), come backend/upgrade_db_trade_republic.py:
+    // sottocategorie per i trasferimenti + saldo iniziale. OR IGNORE: non tocca
+    // righe già presenti (es. saldo corretto a mano).
+    if (has('categories')) {
+      db.run(`INSERT OR IGNORE INTO categories (category, subcategory, category_type) VALUES
+        ('Transfer', 'Transfer to Trade Republic', 'Transfer'),
+        ('Transfer', 'Transfer from Trade Republic', 'Transfer')`);
+    }
+    if (has('account_balances')) {
+      db.run(`INSERT OR IGNORE INTO account_balances (account, balance, as_of_date)
+        VALUES ('Trade Republic', 76.44, '2026-11-22')`);
+    }
   }
 
   function validate(SQL, bytes) {

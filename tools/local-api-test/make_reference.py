@@ -42,6 +42,10 @@ def normalize_schema(path):
         c.execute("ALTER TABLE holdings ADD COLUMN isin TEXT DEFAULT ''")
     c.commit()
     c.close()
+    # righe di dati che ensureSchema aggiunge (conto Trade Republic)
+    sys.path.insert(0, str(ROOT / "backend"))
+    from upgrade_db_trade_republic import upgrade as add_trade_republic
+    add_trade_republic(str(path), verbose=False)
 
 
 def main():
